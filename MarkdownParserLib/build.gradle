@@ -1,0 +1,53 @@
+apply plugin: 'com.android.library'
+
+ext {
+    bintrayRepo = 'maven'
+    bintrayName = 'MarkdownParserLib'
+
+    publishedGroupId = 'com.crescentflare.markdownparser'
+    libraryName = 'MarkdownParserAndroid'
+    artifact = 'MarkdownParserLib'
+
+    libraryDescription = 'A multi-functional and easy way to integrate markdown formatting within Android apps'
+
+    siteUrl = 'https://github.com/crescentflare/MarkdownParserAndroid'
+    gitUrl = 'https://github.com/crescentflare/MarkdownParserAndroid.git'
+
+    libraryVersion = '0.1.0'
+
+    developerId = 'crescentflare'
+    developerName = 'Johan Bos'
+    developerEmail = 'johan@crescentflare.com'
+
+    licenseName = 'The MIT License (MIT)'
+    licenseUrl = 'https://opensource.org/licenses/MIT'
+    allLicenses = ["MIT"]
+}
+
+android {
+    compileSdkVersion 22
+    buildToolsVersion '23.0.2'
+
+    defaultConfig {
+        minSdkVersion 9
+        targetSdkVersion 22
+        versionCode 1
+        versionName "0.1.0"
+        testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles.add(file('proguard-rules.txt'))
+        }
+    }
+}
+
+dependencies {
+    compile project(':MarkdownParserCoreLib')
+    testCompile 'junit:junit:4.12'
+}
+
+apply from: 'https://raw.githubusercontent.com/nuuneoi/JCenter/master/installv1.gradle'
+apply from: 'https://raw.githubusercontent.com/nuuneoi/JCenter/master/bintrayv1.gradle'
