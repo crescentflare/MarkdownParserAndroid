@@ -10,6 +10,7 @@ model {
             targetSdkVersion.apiLevel 22
             versionCode 1
             versionName "0.1.0"
+            project.version "0.1.0"
         }
 
         buildTypes {
