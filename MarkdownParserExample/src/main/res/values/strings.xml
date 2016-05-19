@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Example Markdown Parser</string>
+    <string name="message">Example application for the markdown parser library</string>
+</resources>
