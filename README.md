@@ -4,7 +4,9 @@ A multi-functional and easy way to integrate markdown formatting within Android 
 ### Integration guide
 When using gradle, the library can easily be imported into the build.gradle file of your project. Add the following dependency:
 
-    compile 'com.crescentflare.markdownparser:MarkdownParserLib:0.1.0'
+    compile ('com.crescentflare.markdownparser:MarkdownParserLib:0.1.0') {
+        transitive = false
+    }
 
 Make sure that jcenter is added as a repository.
 
