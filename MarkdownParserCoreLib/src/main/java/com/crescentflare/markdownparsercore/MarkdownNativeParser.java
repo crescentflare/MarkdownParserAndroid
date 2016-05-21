@@ -38,7 +38,7 @@ public class MarkdownNativeParser implements MarkdownParser
     /**
      * Convert tags from native int array to java object
      */
-    private static final int FIELD_COUNT = 9;
+    private static final int FIELD_COUNT = 8;
 
     private int getTagCount(final int[] nativeTags)
     {
@@ -55,9 +55,12 @@ public class MarkdownNativeParser implements MarkdownParser
         position *= FIELD_COUNT;
         tag.type = getConvertedTagType(nativeTags[position]);
         tag.startPosition = nativeTags[position + 2];
-        tag.endPosition = nativeTags[position + 4];
-        tag.startText = nativeTags[position + 6];
-        tag.endText = nativeTags[position + 8];
+        tag.endPosition = nativeTags[position + 3];
+        tag.startText = nativeTags[position + 4];
+        tag.endText = nativeTags[position + 5];
+        tag.nativeInfo = new int[2];
+        tag.nativeInfo[0] = nativeTags[position + 6];
+        tag.nativeInfo[1] = nativeTags[position + 7];
         return tag;
     }
 

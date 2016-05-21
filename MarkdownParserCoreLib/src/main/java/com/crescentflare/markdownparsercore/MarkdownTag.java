@@ -64,9 +64,10 @@ public class MarkdownTag
         }
     }
 
-    public Type type;
-    public int startPosition;
-    public int endPosition;
-    public int startText;
-    public int endText;
+    public Type type = Type.Normal;
+    public int startPosition = -1;
+    public int endPosition = -1;
+    public int startText = -1;
+    public int endText = -1;
+    public int nativeInfo[] = null;
 }

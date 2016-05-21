@@ -58,7 +58,7 @@ typedef struct
  */
 const unsigned char tagFieldCount()
 {
-    return 9;
+    return 8;
 }
 
 void fillTagToArray(const MARKDOWN_TAG *tag, jint *ptr)
@@ -66,14 +66,13 @@ void fillTagToArray(const MARKDOWN_TAG *tag, jint *ptr)
     if (tag && ptr)
     {
         ptr[0] = tag->type;
-        ptr[1] = tag->startPosition.bytePos;
+        ptr[1] = 0;
         ptr[2] = tag->startPosition.chrPos;
-        ptr[3] = tag->endPosition.bytePos;
-        ptr[4] = tag->endPosition.chrPos;
-        ptr[5] = tag->startText.bytePos;
-        ptr[6] = tag->startText.chrPos;
-        ptr[7] = tag->endText.bytePos;
-        ptr[8] = tag->endText.chrPos;
+        ptr[3] = tag->endPosition.chrPos;
+        ptr[4] = tag->startText.chrPos;
+        ptr[5] = tag->endText.chrPos;
+        ptr[6] = tag->startPosition.bytePos;
+        ptr[7] = tag->startText.bytePos;
     }
 }
 
@@ -223,7 +222,7 @@ MARKDOWN_TAG *makeHeaderTag(const char *markdownText, const STRING_POSITION maxL
             }
             else if (chr != ' ')
             {
-                tag->startText = position;
+                tag->startText = i;
                 tag->type = MARKDOWN_TAG_HEADER1 + (headerSize - 1);
             }
         }
@@ -232,7 +231,7 @@ MARKDOWN_TAG *makeHeaderTag(const char *markdownText, const STRING_POSITION maxL
             if (chr == '\n')
             {
                 tag->endPosition.bytePos = i.bytePos + charSize;
-                tag->endPosition.chrPos = position.chrPos + 1;
+                tag->endPosition.chrPos = i.chrPos + 1;
                 tag->endText = i;
                 break;
             }
@@ -290,7 +289,7 @@ MARKDOWN_TAG *makeTextStyleTag(const char *markdownText, const STRING_POSITION m
             }
             else
             {
-                tag->startText = position;
+                tag->startText = i;
                 tag->type = MARKDOWN_TAG_ITALICS + (styleStrength - 1);
                 needStyleStrength = styleStrength;
             }
