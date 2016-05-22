@@ -31,7 +31,7 @@ public class MarkdownJavaParser implements MarkdownParser
                         addParagraphedNormalTag(foundTags, normalTag, markdownText, maxLength);
                     }
                 }
-                if (stylingTag.type.isTextStyle())
+                if (stylingTag.type == MarkdownTag.Type.TextStyle)
                 {
                     addNestedStylingTags(foundTags, stylingTag, markdownText, maxLength);
                 }
@@ -64,12 +64,37 @@ public class MarkdownJavaParser implements MarkdownParser
      */
     public String extractText(String markdownText, MarkdownTag tag)
     {
+        if ((tag.flags & MarkdownTag.FLAG_ESCAPED) > 0)
+        {
+            return escapedSubstring(markdownText, tag.startText, tag.endText);
+        }
         return markdownText.substring(tag.startText, tag.endText);
     }
 
     public String extractFull(String markdownText, MarkdownTag tag)
     {
+        if ((tag.flags & MarkdownTag.FLAG_ESCAPED) > 0)
+        {
+            return escapedSubstring(markdownText, tag.startPosition, tag.endPosition);
+        }
         return markdownText.substring(tag.startPosition, tag.endPosition);
+    }
+
+    private String escapedSubstring(String text, int startPosition, int endPosition)
+    {
+        String filteredText = "";
+        for (int i = startPosition; i < endPosition; i++)
+        {
+            char chr = text.charAt(i);
+            if (chr == '\\' && text.charAt(i + 1) != '\n')
+            {
+                filteredText += text.charAt(i + 1);
+                i++;
+                continue;
+            }
+            filteredText += chr;
+        }
+        return filteredText;
     }
 
     /**
@@ -81,11 +106,16 @@ public class MarkdownJavaParser implements MarkdownParser
         for (int i = position; i < maxLength; i++)
         {
             final char chr = markdownText.charAt(i);
+            if (chr == '\\')
+            {
+                i++;
+                continue;
+            }
             if (chr == '#' && (prevChr == '\n' || prevChr == 0 || i == 0))
             {
                 return makeHeaderTag(markdownText, maxLength, i);
             }
-            if (chr == '*' || chr == '_')
+            if (chr == '*' || chr == '_' || chr == '~')
             {
                 return makeTextStyleTag(markdownText, maxLength, i);
             }
@@ -96,14 +126,11 @@ public class MarkdownJavaParser implements MarkdownParser
 
     private void addNestedStylingTags(final List<MarkdownTag> foundTags, final MarkdownTag stylingTag, final String markdownText, final int maxLength)
     {
-        MarkdownTag nestedTag = searchStylingTag(markdownText, maxLength, stylingTag.startText);
-        if (nestedTag != null && !nestedTag.type.isHeader() && nestedTag.endPosition < stylingTag.endPosition)
+        MarkdownTag nestedTag = searchStylingTag(markdownText, stylingTag.endText, stylingTag.startText);
+        if (nestedTag != null && nestedTag.type != MarkdownTag.Type.Header && nestedTag.endPosition < stylingTag.endPosition)
         {
             //Combine found styling tag with nested tag
-            if ((stylingTag.type == MarkdownTag.Type.Italics && nestedTag.type == MarkdownTag.Type.Bold) || (stylingTag.type == MarkdownTag.Type.Bold && nestedTag.type == MarkdownTag.Type.Italics))
-            {
-                nestedTag.type = MarkdownTag.Type.BoldItalics;
-            }
+            nestedTag.flags |= stylingTag.flags & MarkdownTag.FLAG_TEXTSTYLE;
 
             //Add part of found styling tag before nested style
             MarkdownTag beforeNestedTag = new MarkdownTag();
@@ -112,6 +139,7 @@ public class MarkdownJavaParser implements MarkdownParser
             beforeNestedTag.startText = stylingTag.startText;
             beforeNestedTag.endPosition = nestedTag.startPosition;
             beforeNestedTag.endText = nestedTag.startPosition;
+            beforeNestedTag.flags = stylingTag.flags;
             if (beforeNestedTag.startText < beforeNestedTag.endText)
             {
                 foundTags.add(beforeNestedTag);
@@ -127,6 +155,7 @@ public class MarkdownJavaParser implements MarkdownParser
             afterNestedTag.startText = nestedTag.endPosition;
             afterNestedTag.endPosition = stylingTag.endPosition;
             afterNestedTag.endText = stylingTag.endText;
+            afterNestedTag.flags = stylingTag.flags;
             if (afterNestedTag.startText < afterNestedTag.endText)
             {
                 foundTags.add(afterNestedTag);
@@ -140,10 +169,16 @@ public class MarkdownJavaParser implements MarkdownParser
 
     private void addParagraphedNormalTag(final List<MarkdownTag> foundTags, final MarkdownTag stylingTag, final String markdownText, final int maxLength)
     {
+        boolean foundEscapedChar = false;
         int newlineCount = 0, endParagraph = 0;
         for (int i = stylingTag.startText; i < stylingTag.endText; i++)
         {
             char chr = markdownText.charAt(i);
+            if (chr == '\\' && markdownText.charAt(i + 1) != '\n')
+            {
+                foundEscapedChar = true;
+                continue;
+            }
             if (chr == '\n')
             {
                 newlineCount++;
@@ -159,9 +194,14 @@ public class MarkdownJavaParser implements MarkdownParser
                     paragraphTag.startText = stylingTag.startText;
                     paragraphTag.endPosition = endParagraph;
                     paragraphTag.endText = endParagraph;
+                    if (foundEscapedChar)
+                    {
+                        paragraphTag.flags |= MarkdownTag.FLAG_ESCAPED;
+                    }
                     foundTags.add(paragraphTag);
                     stylingTag.startPosition = i + 1;
                     stylingTag.startText = i + 1;
+                    foundEscapedChar = false;
                     newlineCount = 0;
                 }
             }
@@ -201,12 +241,15 @@ public class MarkdownJavaParser implements MarkdownParser
         MarkdownTag tag = new MarkdownTag();
         int headerSize = 0;
         tag.startPosition = position;
-        tag.endPosition = -1;
-        tag.startText = -1;
-        tag.endText = -1;
         for (int i = position; i < maxLength; i++)
         {
             final char chr = markdownText.charAt(i);
+            if (chr == '\\' && markdownText.charAt(i + 1) != '\n')
+            {
+                tag.flags |= MarkdownTag.FLAG_ESCAPED;
+                i++;
+                continue;
+            }
             if (tag.startText < 0)
             {
                 if (chr == '#' && headerSize < 6)
@@ -216,7 +259,8 @@ public class MarkdownJavaParser implements MarkdownParser
                 else if (chr != ' ')
                 {
                     tag.startText = i;
-                    tag.type = MarkdownTag.Type.headerForSize(headerSize);
+                    tag.type = MarkdownTag.Type.Header;
+                    tag.sizeForType = headerSize;
                 }
             }
             else
@@ -248,22 +292,25 @@ public class MarkdownJavaParser implements MarkdownParser
         int needStyleStrength = 0;
         char tagChr = markdownText.charAt(position);
         tag.startPosition = position;
-        tag.endPosition = -1;
-        tag.startText = -1;
-        tag.endText = -1;
         for (int i = position; i < maxLength; i++)
         {
             final char chr = markdownText.charAt(i);
+            if (chr == '\\' && markdownText.charAt(i + 1) != '\n')
+            {
+                tag.flags |= MarkdownTag.FLAG_ESCAPED;
+                i++;
+                continue;
+            }
             if (tag.startText < 0)
             {
-                if (chr == tagChr && styleStrength < 3)
+                if (chr == tagChr && ((tagChr != '~' && styleStrength < 3) || (tagChr == '~' && styleStrength < 2)))
                 {
                     styleStrength++;
                 }
-                else
+                else if (tagChr != '~' || styleStrength == 2)
                 {
                     tag.startText = i;
-                    tag.type = MarkdownTag.Type.textStyleForStrength(styleStrength);
+                    tag.type = MarkdownTag.Type.TextStyle;
                     needStyleStrength = styleStrength;
                 }
             }
@@ -274,6 +321,14 @@ public class MarkdownJavaParser implements MarkdownParser
                     needStyleStrength--;
                     if (needStyleStrength == 0)
                     {
+                        if (tagChr != '~')
+                        {
+                            tag.flags |= flagsForTextStrength(styleStrength);
+                        }
+                        else
+                        {
+                            tag.flags |= MarkdownTag.FLAG_STRIKETHROUGH;
+                        }
                         tag.endPosition = i + 1;
                         tag.endText = i + 1 - styleStrength;
                         break;
@@ -281,14 +336,42 @@ public class MarkdownJavaParser implements MarkdownParser
                 }
                 else if (needStyleStrength != styleStrength)
                 {
-                    needStyleStrength = styleStrength;
+                    if (tagChr != '~' && styleStrength - needStyleStrength > 0)
+                    {
+                        tag.flags |= flagsForTextStrength(styleStrength - needStyleStrength);
+                        tag.startText -= needStyleStrength;
+                        tag.endPosition = i;
+                        tag.endText = i - (styleStrength - needStyleStrength);
+                        break;
+                    }
+                    else
+                    {
+                        needStyleStrength = styleStrength;
+                    }
                 }
             }
         }
-        if (tag.startText >= 0 && tag.endText >= 0)
+        if (tag.startText >= 0 && tag.endText >= 0 && (tag.flags & MarkdownTag.FLAG_TEXTSTYLE) > 0)
         {
             return tag;
         }
         return null;
+    }
+
+    /**
+     * Helpers
+     */
+    private int flagsForTextStrength(final int textStrength)
+    {
+        switch (textStrength)
+        {
+            case 1:
+                return MarkdownTag.FLAG_ITALICS;
+            case 2:
+                return MarkdownTag.FLAG_BOLD;
+            case 3:
+                return MarkdownTag.FLAG_BOLDITALICS;
+        }
+        return 0;
     }
 }

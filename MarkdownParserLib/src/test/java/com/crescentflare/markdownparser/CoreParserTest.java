@@ -29,24 +29,53 @@ public class CoreParserTest
                 "Some lines of _styled and **double styled** text_ which should be formatted correctly.",
                 "Also new lines should work properly.",
                 "### Caption 3",
-                "The caption above is a bit smaller. Below add more lines to start a new paragraph.",
+                "The caption above is a bit smaller. Below add more lines to start a new \\*paragraph\\*.",
                 "",
-                "New paragraph here."
+                "New paragraph here with ~~strike through text in **bold**~~."
         };
         SimpleMarkdownTag[] expectedTags = new SimpleMarkdownTag[]
         {
-                new SimpleMarkdownTag(MarkdownTag.Type.Normal, "Some text "),
-                new SimpleMarkdownTag(MarkdownTag.Type.Bold, "before"),
-                new SimpleMarkdownTag(MarkdownTag.Type.Normal, " the captions"),
-                new SimpleMarkdownTag(MarkdownTag.Type.Header1, "Caption 1"),
-                new SimpleMarkdownTag(MarkdownTag.Type.Normal, "Some lines of "),
-                new SimpleMarkdownTag(MarkdownTag.Type.Italics, "styled and "),
-                new SimpleMarkdownTag(MarkdownTag.Type.BoldItalics, "double styled"),
-                new SimpleMarkdownTag(MarkdownTag.Type.Italics, " text"),
-                new SimpleMarkdownTag(MarkdownTag.Type.Normal, " which should be formatted correctly.\nAlso new lines should work properly."),
-                new SimpleMarkdownTag(MarkdownTag.Type.Header3, "Caption 3"),
-                new SimpleMarkdownTag(MarkdownTag.Type.Normal, "The caption above is a bit smaller. Below add more lines to start a new paragraph."),
-                new SimpleMarkdownTag(MarkdownTag.Type.Normal, "New paragraph here.")
+                new SimpleMarkdownTag(MarkdownTag.Type.Normal, MarkdownTag.FLAG_NONE, "Some text "),
+                new SimpleMarkdownTag(MarkdownTag.Type.TextStyle, MarkdownTag.FLAG_BOLD, "before"),
+                new SimpleMarkdownTag(MarkdownTag.Type.Normal, MarkdownTag.FLAG_NONE, " the captions"),
+                new SimpleMarkdownTag(MarkdownTag.Type.Header, 1, MarkdownTag.FLAG_NONE, "Caption 1"),
+                new SimpleMarkdownTag(MarkdownTag.Type.Normal, MarkdownTag.FLAG_NONE, "Some lines of "),
+                new SimpleMarkdownTag(MarkdownTag.Type.TextStyle, MarkdownTag.FLAG_ITALICS, "styled and "),
+                new SimpleMarkdownTag(MarkdownTag.Type.TextStyle, MarkdownTag.FLAG_BOLDITALICS, "double styled"),
+                new SimpleMarkdownTag(MarkdownTag.Type.TextStyle, MarkdownTag.FLAG_ITALICS, " text"),
+                new SimpleMarkdownTag(MarkdownTag.Type.Normal, MarkdownTag.FLAG_NONE, " which should be formatted correctly.\nAlso new lines should work properly."),
+                new SimpleMarkdownTag(MarkdownTag.Type.Header, 3, MarkdownTag.FLAG_NONE, "Caption 3"),
+                new SimpleMarkdownTag(MarkdownTag.Type.Normal, MarkdownTag.FLAG_ESCAPED, "The caption above is a bit smaller. Below add more lines to start a new *paragraph*."),
+                new SimpleMarkdownTag(MarkdownTag.Type.Normal, MarkdownTag.FLAG_NONE, "New paragraph here with "),
+                new SimpleMarkdownTag(MarkdownTag.Type.TextStyle, MarkdownTag.FLAG_STRIKETHROUGH, "strike through text in "),
+                new SimpleMarkdownTag(MarkdownTag.Type.TextStyle, MarkdownTag.FLAG_STRIKETHROUGH | MarkdownTag.FLAG_BOLD, "bold"),
+                new SimpleMarkdownTag(MarkdownTag.Type.Normal, MarkdownTag.FLAG_NONE, ".")
+        };
+
+        //Parse and compare
+        MarkdownParser parser = new MarkdownJavaParser();
+        String markdownText = joinWithNewlines(markdownTextLines);
+        MarkdownTag[] foundTags = parser.findTags(markdownText);
+        for (int i = 0; i < foundTags.length && i < expectedTags.length; i++)
+        {
+            Assert.assertEquals(expectedTags[i], new SimpleMarkdownTag(markdownText, foundTags[i]));
+        }
+        Assert.assertEquals(expectedTags.length, foundTags.length);
+    }
+
+    @Test
+    public void testFindTagsEdgeCases()
+    {
+        //Test case with given text and expected markdown tags
+        String[] markdownTextLines = new String[]
+        {
+                "A strange ***combination** tag*."
+        };
+        SimpleMarkdownTag[] expectedTags = new SimpleMarkdownTag[]
+        {
+                new SimpleMarkdownTag(MarkdownTag.Type.Normal, MarkdownTag.FLAG_NONE, "A strange "),
+                new SimpleMarkdownTag(MarkdownTag.Type.TextStyle, MarkdownTag.FLAG_BOLD, "*combination"),
+                new SimpleMarkdownTag(MarkdownTag.Type.Normal, MarkdownTag.FLAG_NONE, " tag*.")
         };
 
         //Parse and compare
@@ -85,17 +114,31 @@ public class CoreParserTest
     private static class SimpleMarkdownTag
     {
         private MarkdownTag.Type type;
+        private int flags;
+        private int sizeForType;
         private String text;
 
-        public SimpleMarkdownTag(MarkdownTag.Type type, String text)
+        public SimpleMarkdownTag(MarkdownTag.Type type, int flags, String text)
         {
             this.type = type;
+            this.flags = flags;
+            this.sizeForType = 1;
+            this.text = text;
+        }
+
+        public SimpleMarkdownTag(MarkdownTag.Type type, int sizeForType, int flags, String text)
+        {
+            this.type = type;
+            this.sizeForType = sizeForType;
+            this.flags = flags;
             this.text = text;
         }
 
         public SimpleMarkdownTag(String markdownText, MarkdownTag tag)
         {
             this.type = tag.type;
+            this.sizeForType = tag.sizeForType;
+            this.flags = tag.flags;
             this.text = new MarkdownJavaParser().extractText(markdownText, tag);
         }
 
@@ -115,6 +158,14 @@ public class CoreParserTest
             {
                 return false;
             }
+            if (sizeForType != that.sizeForType)
+            {
+                return false;
+            }
+            if (flags != that.flags)
+            {
+                return false;
+            }
             return text.equals(that.text);
         }
 
@@ -123,6 +174,8 @@ public class CoreParserTest
         {
             return "SimpleMarkdownTag{" +
                     "type=" + type +
+                    ", flags=" + flags +
+                    ", sizeForType=" + sizeForType +
                     ", text='" + text + '\'' +
                     '}';
         }

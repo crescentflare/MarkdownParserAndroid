@@ -23,32 +23,29 @@ public class MarkdownConverter
                 case Normal:
                     htmlString += parser.extractText(markdownText, tag);
                     break;
-                case Italics:
-                    htmlString += "<i>" + parser.extractText(markdownText, tag) + "</i>".replaceAll("\\n", "<br/>");
+                case TextStyle:
+                {
+                    String openTag = "", closeTag = "";
+                    if ((tag.flags & MarkdownTag.FLAG_ITALICS) > 0)
+                    {
+                        openTag += "<i>";
+                        closeTag = "</i>" + closeTag;
+                    }
+                    if ((tag.flags & MarkdownTag.FLAG_BOLD) > 0)
+                    {
+                        openTag += "<b>";
+                        closeTag = "</b>" + closeTag;
+                    }
+                    if ((tag.flags & MarkdownTag.FLAG_STRIKETHROUGH) > 0)
+                    {
+                        openTag += "<strike>";
+                        closeTag = "</strike>" + closeTag;
+                    }
+                    htmlString += openTag + parser.extractText(markdownText, tag) + closeTag.replaceAll("\\n", "<br/>");
                     break;
-                case Bold:
-                    htmlString += "<b>" + parser.extractText(markdownText, tag) + "</b>".replaceAll("\\n", "<br/>");
-                    break;
-                case BoldItalics:
-                    htmlString += "<i><b>" + parser.extractText(markdownText, tag) + "</b></i>".replaceAll("\\n", "<br/>");
-                    break;
-                case Header1:
-                    htmlString += "<h1>" + parser.extractText(markdownText, tag) + "</h1>";
-                    break;
-                case Header2:
-                    htmlString += "<h2>" + parser.extractText(markdownText, tag) + "</h2>";
-                    break;
-                case Header3:
-                    htmlString += "<h3>" + parser.extractText(markdownText, tag) + "</h3>";
-                    break;
-                case Header4:
-                    htmlString += "<h4>" + parser.extractText(markdownText, tag) + "</h4>";
-                    break;
-                case Header5:
-                    htmlString += "<h5>" + parser.extractText(markdownText, tag) + "</h5>";
-                    break;
-                case Header6:
-                    htmlString += "<h6>" + parser.extractText(markdownText, tag) + "</h6>";
+                }
+                case Header:
+                    htmlString += "<h" + tag.sizeForType + ">" + parser.extractText(markdownText, tag) + "</h" + tag.sizeForType + ">";
                     break;
             }
         }

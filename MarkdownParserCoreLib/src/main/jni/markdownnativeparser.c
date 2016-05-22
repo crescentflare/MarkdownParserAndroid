@@ -10,6 +10,13 @@
  * Constants
  */
 static const char PARSER_IGNORE_CHAR = 'A';
+static const int MARKDOWN_FLAG_NONE = 0x0;
+const int MARKDOWN_FLAG_ITALICS = 0x1;
+const int MARKDOWN_FLAG_BOLD = 0x2;
+const int MARKDOWN_FLAG_BOLDITALICS = 0x3; //MARKDOWN_FLAG_BOLD | MARKDOWN_FLAG_ITALICS;
+const int MARKDOWN_FLAG_STRIKETHROUGH = 0x4;
+const int MARKDOWN_FLAG_TEXTSTYLE = 0x7; //MARKDOWN_FLAG_ITALICS | MARKDOWN_FLAG_BOLD | MARKDOWN_FLAG_STRIKETHROUGH;
+const int MARKDOWN_FLAG_ESCAPED = 0x40000000;
 
 /**
  * Markdown tag type enum
@@ -17,15 +24,8 @@ static const char PARSER_IGNORE_CHAR = 'A';
 typedef enum
 {
     MARKDOWN_TAG_NORMAL = 0,
-    MARKDOWN_TAG_ITALICS,
-    MARKDOWN_TAG_BOLD,
-    MARKDOWN_TAG_BOLDITALICS,
-    MARKDOWN_TAG_HEADER1,
-    MARKDOWN_TAG_HEADER2,
-    MARKDOWN_TAG_HEADER3,
-    MARKDOWN_TAG_HEADER4,
-    MARKDOWN_TAG_HEADER5,
-    MARKDOWN_TAG_HEADER6
+    MARKDOWN_TAG_TEXTSTYLE,
+    MARKDOWN_TAG_HEADER
 }MARKDOWN_TAG_TYPE;
 
 /**
@@ -40,10 +40,12 @@ typedef struct
 typedef struct
 {
     MARKDOWN_TAG_TYPE type;
+    int flags;
     STRING_POSITION startPosition;
     STRING_POSITION endPosition;
     STRING_POSITION startText;
     STRING_POSITION endText;
+    int sizeForType;
 }MARKDOWN_TAG;
 
 typedef struct
@@ -58,7 +60,7 @@ typedef struct
  */
 const unsigned char tagFieldCount()
 {
-    return 8;
+    return 9;
 }
 
 void fillTagToArray(const MARKDOWN_TAG *tag, jint *ptr)
@@ -66,32 +68,41 @@ void fillTagToArray(const MARKDOWN_TAG *tag, jint *ptr)
     if (tag && ptr)
     {
         ptr[0] = tag->type;
-        ptr[1] = 0;
+        ptr[1] = tag->flags;
         ptr[2] = tag->startPosition.chrPos;
         ptr[3] = tag->endPosition.chrPos;
         ptr[4] = tag->startText.chrPos;
         ptr[5] = tag->endText.chrPos;
         ptr[6] = tag->startPosition.bytePos;
         ptr[7] = tag->startText.bytePos;
+        ptr[8] = tag->sizeForType;
     }
 }
 
-const char isHeaderTag(const MARKDOWN_TAG *tag)
+void tagDefaults(MARKDOWN_TAG *tag)
 {
-    if (tag)
-    {
-        return tag->type >= MARKDOWN_TAG_HEADER1 && tag->type <= MARKDOWN_TAG_HEADER6;
-    }
-    return NULL;
+    STRING_POSITION defaultPosition = { -1, -1 };
+    tag->type = MARKDOWN_TAG_NORMAL;
+    tag->flags = 0;
+    tag->startPosition = defaultPosition;
+    tag->endPosition = defaultPosition;
+    tag->startText = defaultPosition;
+    tag->endText = defaultPosition;
+    tag->sizeForType = 1;
 }
 
-const char isTextStyleTag(const MARKDOWN_TAG *tag)
+int flagsForTextStrength(int textStrength)
 {
-    if (tag)
+    switch (textStrength)
     {
-        return tag->type == MARKDOWN_TAG_ITALICS || tag->type == MARKDOWN_TAG_BOLD || tag->type == MARKDOWN_TAG_BOLDITALICS;
+        case 1:
+            return MARKDOWN_FLAG_ITALICS;
+        case 2:
+            return MARKDOWN_FLAG_BOLD;
+        case 3:
+            return MARKDOWN_FLAG_BOLDITALICS;
     }
-    return NULL;
+    return 0;
 }
 
 /**
@@ -167,6 +178,7 @@ MARKDOWN_TAG *makeNormalTag(const char *markdownText, const STRING_POSITION posi
     {
         return NULL;
     }
+    tagDefaults(tag);
     tag->type = MARKDOWN_TAG_NORMAL;
     tag->startPosition = position;
     tag->startText = position;
@@ -194,12 +206,9 @@ MARKDOWN_TAG *makeHeaderTag(const char *markdownText, const STRING_POSITION maxL
     {
         return NULL;
     }
-    STRING_POSITION defaultPos = { -1, -1 };
+    tagDefaults(tag);
     int headerSize = 0;
     tag->startPosition = position;
-    tag->endPosition = defaultPos;
-    tag->startText = defaultPos;
-    tag->endText = defaultPos;
     STRING_POSITION i = position;
     while (i.bytePos < maxLength.bytePos)
     {
@@ -214,6 +223,13 @@ MARKDOWN_TAG *makeHeaderTag(const char *markdownText, const STRING_POSITION maxL
             }
             chr = PARSER_IGNORE_CHAR;
         }
+        if (chr == '\\' && markdownText[i.bytePos + 1] != '\n')
+        {
+            tag->flags |= MARKDOWN_FLAG_ESCAPED;
+            i.bytePos += charSize;
+            i.chrPos++;
+            continue;
+        }
         if (tag->startText.chrPos < 0)
         {
             if (chr == '#' && headerSize < 6)
@@ -223,7 +239,8 @@ MARKDOWN_TAG *makeHeaderTag(const char *markdownText, const STRING_POSITION maxL
             else if (chr != ' ')
             {
                 tag->startText = i;
-                tag->type = MARKDOWN_TAG_HEADER1 + (headerSize - 1);
+                tag->type = MARKDOWN_TAG_HEADER;
+                tag->sizeForType = headerSize;
             }
         }
         else
@@ -259,14 +276,11 @@ MARKDOWN_TAG *makeTextStyleTag(const char *markdownText, const STRING_POSITION m
     {
         return NULL;
     }
-    STRING_POSITION defaultPos = { -1, -1 };
+    tagDefaults(tag);
     int styleStrength = 0;
     int needStyleStrength = 0;
     char tagChr = markdownText[position.bytePos];
     tag->startPosition = position;
-    tag->endPosition = defaultPos;
-    tag->startText = defaultPos;
-    tag->endText = defaultPos;
     STRING_POSITION i = position;
     while (i.bytePos < maxLength.bytePos)
     {
@@ -281,16 +295,23 @@ MARKDOWN_TAG *makeTextStyleTag(const char *markdownText, const STRING_POSITION m
             }
             chr = PARSER_IGNORE_CHAR;
         }
+        if (chr == '\\' && markdownText[i.bytePos + 1] != '\n')
+        {
+            tag->flags |= MARKDOWN_FLAG_ESCAPED;
+            i.bytePos += charSize;
+            i.chrPos++;
+            continue;
+        }
         if (tag->startText.chrPos < 0)
         {
-            if (chr == tagChr && styleStrength < 3)
+            if (chr == tagChr && ((tagChr != '~' && styleStrength < 3) || (tagChr == '~' && styleStrength < 2)))
             {
                 styleStrength++;
             }
-            else
+            else if (tagChr != '~' || styleStrength == 2)
             {
                 tag->startText = i;
-                tag->type = MARKDOWN_TAG_ITALICS + (styleStrength - 1);
+                tag->type = MARKDOWN_TAG_TEXTSTYLE;
                 needStyleStrength = styleStrength;
             }
         }
@@ -301,6 +322,14 @@ MARKDOWN_TAG *makeTextStyleTag(const char *markdownText, const STRING_POSITION m
                 needStyleStrength--;
                 if (needStyleStrength == 0)
                 {
+                    if (tagChr != '~')
+                    {
+                        tag->flags |= flagsForTextStrength(styleStrength);
+                    }
+                    else
+                    {
+                        tag->flags |= MARKDOWN_FLAG_STRIKETHROUGH;
+                    }
                     tag->endPosition.bytePos = i.bytePos + charSize;
                     tag->endPosition.chrPos = i.chrPos + 1;
                     tag->endText.bytePos = i.bytePos + charSize - styleStrength;
@@ -310,13 +339,26 @@ MARKDOWN_TAG *makeTextStyleTag(const char *markdownText, const STRING_POSITION m
             }
             else if (needStyleStrength != styleStrength)
             {
-                needStyleStrength = styleStrength;
+                if (tagChr != '~' && styleStrength - needStyleStrength > 0)
+                {
+                    tag->flags |= flagsForTextStrength(styleStrength - needStyleStrength);
+                    tag->startText.bytePos -= needStyleStrength;
+                    tag->startText.chrPos -= needStyleStrength;
+                    tag->endPosition = i;
+                    tag->endText.bytePos = i.bytePos - (styleStrength - needStyleStrength);
+                    tag->endText.chrPos = i.bytePos - (styleStrength - needStyleStrength);
+                    break;
+                }
+                else
+                {
+                    needStyleStrength = styleStrength;
+                }
             }
         }
         i.bytePos += charSize;
         i.chrPos++;
     }
-    if (tag->startText.chrPos >= 0 && tag->endText.chrPos >= 0)
+    if (tag->startText.chrPos >= 0 && tag->endText.chrPos >= 0 && (tag->flags & MARKDOWN_FLAG_TEXTSTYLE) > 0)
     {
         return tag;
     }
@@ -343,11 +385,17 @@ MARKDOWN_TAG *searchStylingTag(const char *markdownText, const STRING_POSITION m
             }
             chr = PARSER_IGNORE_CHAR;
         }
+        if (chr == '\\')
+        {
+            i.bytePos += charSize;
+            i.chrPos++;
+            continue;
+        }
         if (chr == '#' && (prevChr == '\n' || prevChr == 0 || i.chrPos == 0))
         {
             return makeHeaderTag(markdownText, maxLength, i);
         }
-        if (chr == '*' || chr == '_')
+        if (chr == '*' || chr == '_' || chr == '~')
         {
             return makeTextStyleTag(markdownText, maxLength, i);
         }
@@ -360,24 +408,23 @@ MARKDOWN_TAG *searchStylingTag(const char *markdownText, const STRING_POSITION m
 
 void addNestedStylingTags(MARKDOWN_TAG_MEMORY_BLOCK *tagList, MARKDOWN_TAG *stylingTag, const char *markdownText, const STRING_POSITION maxLength)
 {
-    MARKDOWN_TAG *nestedTag = searchStylingTag(markdownText, maxLength, stylingTag->startText);
-    if (nestedTag && !isHeaderTag(nestedTag) && nestedTag->endPosition.chrPos < stylingTag->endPosition.chrPos)
+    MARKDOWN_TAG *nestedTag = searchStylingTag(markdownText, stylingTag->endText, stylingTag->startText);
+    if (nestedTag && nestedTag->type != MARKDOWN_TAG_HEADER && nestedTag->endPosition.chrPos < stylingTag->endPosition.chrPos)
     {
         //Combine found styling tag with nested tag
-        if ((stylingTag->type == MARKDOWN_TAG_ITALICS && nestedTag->type == MARKDOWN_TAG_BOLD) || (stylingTag->type == MARKDOWN_TAG_BOLD && nestedTag->type == MARKDOWN_TAG_ITALICS))
-        {
-            nestedTag->type = MARKDOWN_TAG_BOLDITALICS;
-        }
+        nestedTag->flags |= stylingTag->flags & MARKDOWN_FLAG_TEXTSTYLE;
 
         //Add part of found styling tag before nested style
         MARKDOWN_TAG *beforeNestedTag = malloc(sizeof(MARKDOWN_TAG));
         if (beforeNestedTag)
         {
+            tagDefaults(beforeNestedTag);
             beforeNestedTag->type = stylingTag->type;
             beforeNestedTag->startPosition = stylingTag->startPosition;
             beforeNestedTag->startText = stylingTag->startText;
             beforeNestedTag->endPosition = nestedTag->startPosition;
             beforeNestedTag->endText = nestedTag->startPosition;
+            beforeNestedTag->flags = stylingTag->flags;
             if (beforeNestedTag->startText.chrPos < beforeNestedTag->endText.chrPos)
             {
                 addTagToBlock(tagList, beforeNestedTag);
@@ -392,11 +439,13 @@ void addNestedStylingTags(MARKDOWN_TAG_MEMORY_BLOCK *tagList, MARKDOWN_TAG *styl
         MARKDOWN_TAG *afterNestedTag = malloc(sizeof(MARKDOWN_TAG));
         if (afterNestedTag)
         {
+            tagDefaults(afterNestedTag);
             afterNestedTag->type = stylingTag->type;
             afterNestedTag->startPosition = nestedTag->endPosition;
             afterNestedTag->startText = nestedTag->endPosition;
             afterNestedTag->endPosition = stylingTag->endPosition;
             afterNestedTag->endText = stylingTag->endText;
+            afterNestedTag->flags = stylingTag->flags;
             if (afterNestedTag->startText.chrPos < afterNestedTag->endText.chrPos)
             {
                 addTagToBlock(tagList, afterNestedTag);
@@ -416,6 +465,7 @@ void addNestedStylingTags(MARKDOWN_TAG_MEMORY_BLOCK *tagList, MARKDOWN_TAG *styl
 
 void addParagraphedNormalTag(MARKDOWN_TAG_MEMORY_BLOCK *tagList, MARKDOWN_TAG *stylingTag, const char *markdownText, const STRING_POSITION maxLength)
 {
+    char foundEscapedChar = 0;
     int newlineCount = 0;
     STRING_POSITION endParagraph = { 0, 0 };
     STRING_POSITION i = stylingTag->startText;
@@ -431,6 +481,11 @@ void addParagraphedNormalTag(MARKDOWN_TAG_MEMORY_BLOCK *tagList, MARKDOWN_TAG *s
             }
             chr = PARSER_IGNORE_CHAR;
         }
+        if (chr == '\\' && markdownText[i.bytePos + 1] != '\n')
+        {
+            foundEscapedChar = 1;
+            continue;
+        }
         if (chr == '\n')
         {
             newlineCount++;
@@ -443,11 +498,16 @@ void addParagraphedNormalTag(MARKDOWN_TAG_MEMORY_BLOCK *tagList, MARKDOWN_TAG *s
                 MARKDOWN_TAG *tag = malloc(sizeof(MARKDOWN_TAG));
                 if (tag)
                 {
+                    tagDefaults(tag);
                     tag->type = MARKDOWN_TAG_NORMAL;
                     tag->startPosition = stylingTag->startPosition;
                     tag->startText = stylingTag->startText;
                     tag->endPosition = endParagraph;
                     tag->endText = endParagraph;
+                    if (foundEscapedChar)
+                    {
+                        tag->flags |= MARKDOWN_FLAG_ESCAPED;
+                    }
                     addTagToBlock(tagList, tag);
                     stylingTag->startPosition.bytePos = i.bytePos + 1;
                     stylingTag->startPosition.chrPos = i.chrPos + 1;
@@ -455,6 +515,7 @@ void addParagraphedNormalTag(MARKDOWN_TAG_MEMORY_BLOCK *tagList, MARKDOWN_TAG *s
                     stylingTag->startText.chrPos = i.chrPos + 1;
                     free(tag);
                 }
+                foundEscapedChar = 0;
                 newlineCount = 0;
             }
         }
@@ -493,7 +554,7 @@ Java_com_crescentflare_markdownparsercore_MarkdownNativeParser_findNativeTags(JN
                     addParagraphedNormalTag(&tagList, tag, markdownText, maxLength);
                 }
             }
-            if (isTextStyleTag(stylingTag))
+            if (stylingTag->type == MARKDOWN_TAG_TEXTSTYLE)
             {
                 addNestedStylingTags(&tagList, stylingTag, markdownText, maxLength);
             }
