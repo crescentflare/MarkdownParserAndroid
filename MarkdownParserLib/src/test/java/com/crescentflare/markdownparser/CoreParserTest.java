@@ -1,7 +1,6 @@
 package com.crescentflare.markdownparser;
 
 import com.crescentflare.markdownparsercore.MarkdownJavaParser;
-import com.crescentflare.markdownparsercore.MarkdownNativeParser;
 import com.crescentflare.markdownparsercore.MarkdownParser;
 import com.crescentflare.markdownparsercore.MarkdownTag;
 
