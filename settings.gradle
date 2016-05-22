@@ -1,4 +1,4 @@
 include 'MarkdownParserCoreLib'
-include 'MarkdownParserLib'
+include 'MarkdownParserLibDev'
 include 'MarkdownParserExample'
-include 'MarkdownParserLibPublish'
+include 'MarkdownParserLib'
