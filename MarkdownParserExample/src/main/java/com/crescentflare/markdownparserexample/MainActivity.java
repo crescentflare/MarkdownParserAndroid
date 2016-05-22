@@ -18,7 +18,7 @@ public class MainActivity extends AppCompatActivity
     {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        String htmlString = MarkdownConverter.toHtmlString("# First chapter\nThis text can be either __bold__ or *italics*.\nA combination is ***also possible***.\n### Small heading\nWith a single line of text.");
+        String htmlString = MarkdownConverter.toHtmlString("# First chapter\nThis text can be either __bold__ or *italics*.\nA combination is ***also possible***.\n### Small heading\nWith a \\*single\\* line of text.");
         ((TextView)findViewById(R.id.activity_main_text)).setText(Html.fromHtml(htmlString), TextView.BufferType.SPANNABLE);
     }
 }

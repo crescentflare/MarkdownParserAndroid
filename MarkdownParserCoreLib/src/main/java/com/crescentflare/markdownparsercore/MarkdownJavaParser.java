@@ -210,6 +210,10 @@ public class MarkdownJavaParser implements MarkdownParser
                 newlineCount = 0;
             }
         }
+        if (foundEscapedChar)
+        {
+            stylingTag.flags |= MarkdownTag.FLAG_ESCAPED;
+        }
         foundTags.add(stylingTag);
     }
 

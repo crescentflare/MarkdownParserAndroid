@@ -87,7 +87,10 @@ public class MarkdownNativeParser implements MarkdownParser
     {
         if ((tag.flags & MarkdownTag.FLAG_ESCAPED) > 0)
         {
-            return escapedSubstring(markdownText, tag.startText, tag.endText);
+            if (tag.nativeInfo != null)
+            {
+                return escapedSubstring(markdownText, tag.nativeInfo[1], tag.endText - tag.startText);
+            }
         }
         return markdownText.substring(tag.startText, tag.endText);
     }
@@ -96,26 +99,13 @@ public class MarkdownNativeParser implements MarkdownParser
     {
         if ((tag.flags & MarkdownTag.FLAG_ESCAPED) > 0)
         {
-            return escapedSubstring(markdownText, tag.startPosition, tag.endPosition);
+            if (tag.nativeInfo != null)
+            {
+                return escapedSubstring(markdownText, tag.nativeInfo[0], tag.endPosition - tag.startPosition);
+            }
         }
         return markdownText.substring(tag.startPosition, tag.endPosition);
     }
 
-    private String escapedSubstring(String text, int startPosition, int endPosition) //TODO: make native method
-    {
-        String filteredText = "";
-        for (int i = startPosition; i < endPosition; i++)
-        {
-            char chr = text.charAt(i);
-            if (chr == '\\' && text.charAt(i + 1) != '\n')
-            {
-                filteredText += text.charAt(i + 1);
-                i++;
-                continue;
-            }
-            filteredText += chr;
-        }
-        return filteredText;
-    }
-
+    private native String escapedSubstring(String text, int bytePosition, int length);
 }

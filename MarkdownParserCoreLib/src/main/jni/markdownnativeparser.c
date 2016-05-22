@@ -226,8 +226,8 @@ MARKDOWN_TAG *makeHeaderTag(const char *markdownText, const STRING_POSITION maxL
         if (chr == '\\' && markdownText[i.bytePos + 1] != '\n')
         {
             tag->flags |= MARKDOWN_FLAG_ESCAPED;
-            i.bytePos += charSize;
-            i.chrPos++;
+            i.bytePos += charSize + UTF_CHAR_SIZE(markdownText[i.bytePos + charSize]);
+            i.chrPos += 2;
             continue;
         }
         if (tag->startText.chrPos < 0)
@@ -298,8 +298,8 @@ MARKDOWN_TAG *makeTextStyleTag(const char *markdownText, const STRING_POSITION m
         if (chr == '\\' && markdownText[i.bytePos + 1] != '\n')
         {
             tag->flags |= MARKDOWN_FLAG_ESCAPED;
-            i.bytePos += charSize;
-            i.chrPos++;
+            i.bytePos += charSize + UTF_CHAR_SIZE(markdownText[i.bytePos + charSize]);
+            i.chrPos += 2;
             continue;
         }
         if (tag->startText.chrPos < 0)
@@ -387,8 +387,8 @@ MARKDOWN_TAG *searchStylingTag(const char *markdownText, const STRING_POSITION m
         }
         if (chr == '\\')
         {
-            i.bytePos += charSize;
-            i.chrPos++;
+            i.bytePos += charSize + UTF_CHAR_SIZE(markdownText[i.bytePos + charSize]);
+            i.chrPos += 2;
             continue;
         }
         if (chr == '#' && (prevChr == '\n' || prevChr == 0 || i.chrPos == 0))
@@ -484,6 +484,8 @@ void addParagraphedNormalTag(MARKDOWN_TAG_MEMORY_BLOCK *tagList, MARKDOWN_TAG *s
         if (chr == '\\' && markdownText[i.bytePos + 1] != '\n')
         {
             foundEscapedChar = 1;
+            i.bytePos += charSize;
+            i.chrPos++;
             continue;
         }
         if (chr == '\n')
@@ -525,6 +527,10 @@ void addParagraphedNormalTag(MARKDOWN_TAG_MEMORY_BLOCK *tagList, MARKDOWN_TAG *s
         }
         i.bytePos += charSize;
         i.chrPos++;
+    }
+    if (foundEscapedChar)
+    {
+        stylingTag->flags |= MARKDOWN_FLAG_ESCAPED;
     }
     addTagToBlock(tagList, stylingTag);
 }
@@ -595,8 +601,64 @@ Java_com_crescentflare_markdownparsercore_MarkdownNativeParser_findNativeTags(JN
             fillTagToArray(tagFromBlock(&tagList, i), &convertedValues[i * tagFieldCount()]);
         }
         (*env)->SetIntArrayRegion(env, returnArray, 0, tagList.tagCount * tagFieldCount(), convertedValues);
+        free(convertedValues);
     }
     (*env)->ReleaseStringUTFChars(env, markdownText_, markdownText);
     deleteMarkdownTagMemoryBlock(&tagList);
     return returnArray;
+}
+
+/**
+ * JNI function to extract an escaped string
+ */
+JNIEXPORT jstring JNICALL
+Java_com_crescentflare_markdownparsercore_MarkdownNativeParser_escapedSubstring(JNIEnv *env, jobject instance, jstring text_, jint bytePosition, jint length)
+{
+    jstring returnValue = NULL;
+    const char *text = (*env)->GetStringUTFChars(env, text_, 0);
+    char *extractedText = malloc((size_t)length * 4);
+    if (extractedText)
+    {
+        int srcPos = bytePosition;
+        int destPos = 0;
+        int i;
+        size_t bytesTraversed = 0;
+        for (i = 0; i < length; i++)
+        {
+            char chr = text[srcPos];
+            int charSize = UTF_CHAR_SIZE(chr);
+            if (charSize != 1)
+            {
+                if (charSize == 0)
+                {
+                    break;
+                }
+                chr = PARSER_IGNORE_CHAR;
+            }
+            if (chr == '\\' && text[srcPos + 1] != '\n')
+            {
+                if (bytesTraversed > 0)
+                {
+                    memcpy(&extractedText[destPos], &text[srcPos - bytesTraversed], bytesTraversed);
+                    destPos += bytesTraversed;
+                    bytesTraversed = 0;
+                }
+            }
+            else
+            {
+                bytesTraversed += charSize;
+            }
+            srcPos += charSize;
+        }
+        if (bytesTraversed > 0)
+        {
+            memcpy(&extractedText[destPos], &text[srcPos - bytesTraversed], bytesTraversed);
+            destPos += bytesTraversed;
+        }
+        extractedText[destPos] = 0;
+        returnValue = (*env)->NewStringUTF(env, extractedText);
+        free(extractedText);
+    }
+    (*env)->ReleaseStringUTFChars(env, text_, text);
+    return returnValue;
 }
