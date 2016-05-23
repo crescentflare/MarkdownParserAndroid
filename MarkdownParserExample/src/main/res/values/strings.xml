@@ -1,4 +1,4 @@
 <resources>
     <string name="app_name">Example Markdown Parser</string>
-    <string name="message"># First chapter\nThis text can be either __bold__ or *italics*.\nA combination is ***also possible***.\n### Small heading\nWith a \*single\* line of ~~strike through~~ text.</string>
+    <string name="message"># First chapter\nThis text can be either __bold__ or *italics*.\nA combination is ***also possible***.\n### Small heading\nWith a \\*single\\* line of ~~strike through~~ text.</string>
 </resources>

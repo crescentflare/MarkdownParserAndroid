@@ -12,7 +12,8 @@ typedef struct
     int chrPos;
 }STRING_POSITION;
 
-#define UTF_CHAR_SIZE(chr) (unsigned char)((chr & 0x80) == 0x0 ? 1 : ((chr & 0xE0) == 0xC0 ? 2 : ((chr & 0xF0) == 0xE0 ? 3 : ((chr & 0xF8) == 0xF0 ? 1 : 0))))
+#define UTF_CHAR_SIZE(chr) (unsigned char)((chr & 0x80) == 0x0 ? 1 : ((chr & 0xE0) == 0xC0 ? 2 : ((chr & 0xF0) == 0xE0 ? 3 : ((chr & 0xF8) == 0xF0 ? 4 : 1))))
+#define INCREASE_STRING_POSITION(pos, txt) (pos.bytePos += UTF_CHAR_SIZE(txt[pos.bytePos]), pos.chrPos++)
 
 
 /**
@@ -204,8 +205,8 @@ MARKDOWN_TAG *makeHeaderTag(const char *markdownText, const STRING_POSITION maxL
     tagDefaults(tag);
     int headerSize = 0;
     tag->startPosition = position;
-    STRING_POSITION i = position;
-    while (i.bytePos < maxLength.bytePos)
+    STRING_POSITION i;
+    for (i = position; i.bytePos < maxLength.bytePos; INCREASE_STRING_POSITION(i, markdownText))
     {
         char chr = markdownText[i.bytePos];
         unsigned char charSize = UTF_CHAR_SIZE(chr);
@@ -221,8 +222,8 @@ MARKDOWN_TAG *makeHeaderTag(const char *markdownText, const STRING_POSITION maxL
         if (chr == '\\' && markdownText[i.bytePos + 1] != '\n')
         {
             tag->flags |= MARKDOWN_FLAG_ESCAPED;
-            i.bytePos += charSize + UTF_CHAR_SIZE(markdownText[i.bytePos + charSize]);
-            i.chrPos += 2;
+            i.bytePos += charSize;
+            i.chrPos++;
             continue;
         }
         if (tag->startText.chrPos < 0)
@@ -248,8 +249,6 @@ MARKDOWN_TAG *makeHeaderTag(const char *markdownText, const STRING_POSITION maxL
                 break;
             }
         }
-        i.bytePos += charSize;
-        i.chrPos++;
     }
     if (tag->endPosition.chrPos < 0)
     {
@@ -276,8 +275,8 @@ MARKDOWN_TAG *makeTextStyleTag(const char *markdownText, const STRING_POSITION m
     int needStyleStrength = 0;
     char tagChr = markdownText[position.bytePos];
     tag->startPosition = position;
-    STRING_POSITION i = position;
-    while (i.bytePos < maxLength.bytePos)
+    STRING_POSITION i;
+    for (i = position; i.bytePos < maxLength.bytePos; INCREASE_STRING_POSITION(i, markdownText))
     {
         char chr = markdownText[i.bytePos];
         unsigned char charSize = UTF_CHAR_SIZE(chr);
@@ -293,8 +292,8 @@ MARKDOWN_TAG *makeTextStyleTag(const char *markdownText, const STRING_POSITION m
         if (chr == '\\' && markdownText[i.bytePos + 1] != '\n')
         {
             tag->flags |= MARKDOWN_FLAG_ESCAPED;
-            i.bytePos += charSize + UTF_CHAR_SIZE(markdownText[i.bytePos + charSize]);
-            i.chrPos += 2;
+            i.bytePos += charSize;
+            i.chrPos++;
             continue;
         }
         if (tag->startText.chrPos < 0)
@@ -350,8 +349,6 @@ MARKDOWN_TAG *makeTextStyleTag(const char *markdownText, const STRING_POSITION m
                 }
             }
         }
-        i.bytePos += charSize;
-        i.chrPos++;
     }
     if (tag->startText.chrPos >= 0 && tag->endText.chrPos >= 0 && (tag->flags & MARKDOWN_FLAG_TEXTSTYLE) > 0)
     {
@@ -368,8 +365,8 @@ MARKDOWN_TAG *makeTextStyleTag(const char *markdownText, const STRING_POSITION m
 MARKDOWN_TAG *searchStylingTag(const char *markdownText, const STRING_POSITION maxLength, const STRING_POSITION position)
 {
     char prevChr = 0;
-    STRING_POSITION i = position;
-    while (i.bytePos < maxLength.bytePos)
+    STRING_POSITION i;
+    for (i = position; i.bytePos < maxLength.bytePos; INCREASE_STRING_POSITION(i, markdownText))
     {
         char chr = markdownText[i.bytePos];
         unsigned char charSize = UTF_CHAR_SIZE(chr);
@@ -383,8 +380,8 @@ MARKDOWN_TAG *searchStylingTag(const char *markdownText, const STRING_POSITION m
         }
         if (chr == '\\')
         {
-            i.bytePos += charSize + UTF_CHAR_SIZE(markdownText[i.bytePos + charSize]);
-            i.chrPos += 2;
+            i.bytePos += charSize;
+            i.chrPos++;
             continue;
         }
         if (chr == '#' && (prevChr == '\n' || prevChr == 0 || i.chrPos == 0))
@@ -396,8 +393,6 @@ MARKDOWN_TAG *searchStylingTag(const char *markdownText, const STRING_POSITION m
             return makeTextStyleTag(markdownText, maxLength, i);
         }
         prevChr = chr;
-        i.bytePos += charSize;
-        i.chrPos++;
     }
     return NULL;
 }
@@ -464,8 +459,8 @@ void addParagraphedNormalTag(MARKDOWN_TAG_MEMORY_BLOCK *tagList, MARKDOWN_TAG *s
     char foundEscapedChar = 0;
     int newlineCount = 0;
     STRING_POSITION endParagraph = { 0, 0 };
-    STRING_POSITION i = stylingTag->startText;
-    while (i.chrPos < stylingTag->endText.chrPos)
+    STRING_POSITION i;
+    for (i = stylingTag->startText; i.chrPos < stylingTag->endText.chrPos; INCREASE_STRING_POSITION(i, markdownText))
     {
         char chr = markdownText[i.bytePos];
         unsigned char charSize = UTF_CHAR_SIZE(chr);
@@ -480,8 +475,6 @@ void addParagraphedNormalTag(MARKDOWN_TAG_MEMORY_BLOCK *tagList, MARKDOWN_TAG *s
         if (chr == '\\' && markdownText[i.bytePos + 1] != '\n')
         {
             foundEscapedChar = 1;
-            i.bytePos += charSize;
-            i.chrPos++;
             continue;
         }
         if (chr == '\n')
@@ -521,8 +514,6 @@ void addParagraphedNormalTag(MARKDOWN_TAG_MEMORY_BLOCK *tagList, MARKDOWN_TAG *s
         {
             newlineCount = 0;
         }
-        i.bytePos += charSize;
-        i.chrPos++;
     }
     if (foundEscapedChar)
     {
