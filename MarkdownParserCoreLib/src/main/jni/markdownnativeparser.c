@@ -2,40 +2,36 @@
 #include <stdlib.h>
 
 /**
- * Macros
- */
-#define UTF_CHAR_SIZE(chr) (unsigned char)((chr & 0x80) == 0x0 ? 1 : ((chr & 0xE0) == 0xC0 ? 2 : ((chr & 0xF0) == 0xE0 ? 3 : ((chr & 0xF8) == 0xF0 ? 1 : 0))))
-
-/**
- * Constants
+ * Constant, struct, macro's and utility functions to traverse UTF8 strings
  */
 static const char PARSER_IGNORE_CHAR = 'A';
-static const int MARKDOWN_FLAG_NONE = 0x0;
-const int MARKDOWN_FLAG_ITALICS = 0x1;
-const int MARKDOWN_FLAG_BOLD = 0x2;
-const int MARKDOWN_FLAG_BOLDITALICS = 0x3; //MARKDOWN_FLAG_BOLD | MARKDOWN_FLAG_ITALICS;
-const int MARKDOWN_FLAG_STRIKETHROUGH = 0x4;
-const int MARKDOWN_FLAG_TEXTSTYLE = 0x7; //MARKDOWN_FLAG_ITALICS | MARKDOWN_FLAG_BOLD | MARKDOWN_FLAG_STRIKETHROUGH;
-const int MARKDOWN_FLAG_ESCAPED = 0x40000000;
+
+typedef struct
+{
+    int bytePos;
+    int chrPos;
+}STRING_POSITION;
+
+#define UTF_CHAR_SIZE(chr) (unsigned char)((chr & 0x80) == 0x0 ? 1 : ((chr & 0xE0) == 0xC0 ? 2 : ((chr & 0xF0) == 0xE0 ? 3 : ((chr & 0xF8) == 0xF0 ? 1 : 0))))
+
 
 /**
- * Markdown tag type enum
+ * Constants, enum, struct and utility functions for markdown tags
  */
+static const int MARKDOWN_FLAG_NONE = 0x0;
+static const int MARKDOWN_FLAG_ITALICS = 0x1;
+static const int MARKDOWN_FLAG_BOLD = 0x2;
+static const int MARKDOWN_FLAG_BOLDITALICS = 0x3; //MARKDOWN_FLAG_BOLD | MARKDOWN_FLAG_ITALICS;
+static const int MARKDOWN_FLAG_STRIKETHROUGH = 0x4;
+static const int MARKDOWN_FLAG_TEXTSTYLE = 0x7; //MARKDOWN_FLAG_ITALICS | MARKDOWN_FLAG_BOLD | MARKDOWN_FLAG_STRIKETHROUGH;
+static const int MARKDOWN_FLAG_ESCAPED = 0x40000000;
+
 typedef enum
 {
     MARKDOWN_TAG_NORMAL = 0,
     MARKDOWN_TAG_TEXTSTYLE,
     MARKDOWN_TAG_HEADER
 }MARKDOWN_TAG_TYPE;
-
-/**
- * Structures for native markdown tag and memory block
- */
-typedef struct
-{
-    int bytePos;
-    int chrPos;
-}STRING_POSITION;
 
 typedef struct
 {
@@ -48,16 +44,6 @@ typedef struct
     int sizeForType;
 }MARKDOWN_TAG;
 
-typedef struct
-{
-    void *memoryBlock;
-    size_t allocatedMemory;
-    int tagCount;
-}MARKDOWN_TAG_MEMORY_BLOCK;
-
-/**
- * Utility functions for markdown tags
- */
 const unsigned char tagFieldCount()
 {
     return 9;
@@ -105,9 +91,17 @@ int flagsForTextStrength(int textStrength)
     return 0;
 }
 
+
 /**
- * Functions to handle the memory block of found markdown tags
+ * Struct and functions to handle the memory block of found markdown tags
  */
+typedef struct
+{
+    void *memoryBlock;
+    size_t allocatedMemory;
+    int tagCount;
+}MARKDOWN_TAG_MEMORY_BLOCK;
+
 MARKDOWN_TAG_MEMORY_BLOCK newMarkdownTagMemoryBlock()
 {
     MARKDOWN_TAG_MEMORY_BLOCK block;
@@ -167,6 +161,7 @@ MARKDOWN_TAG *tagFromBlock(const MARKDOWN_TAG_MEMORY_BLOCK *block, const int pos
     int tagSize = (sizeof(MARKDOWN_TAG) + 7) / 8 * 8;
     return (MARKDOWN_TAG *)&((unsigned char *)block->memoryBlock)[position * tagSize];
 }
+
 
 /**
  * Find tags based on start position and iterating to find the end position
@@ -366,6 +361,7 @@ MARKDOWN_TAG *makeTextStyleTag(const char *markdownText, const STRING_POSITION m
     return NULL;
 }
 
+
 /**
  * Search for types of tag
  */
@@ -535,6 +531,7 @@ void addParagraphedNormalTag(MARKDOWN_TAG_MEMORY_BLOCK *tagList, MARKDOWN_TAG *s
     addTagToBlock(tagList, stylingTag);
 }
 
+
 /**
  * JNI function to find all supported markdown tags
  */
@@ -607,6 +604,7 @@ Java_com_crescentflare_markdownparsercore_MarkdownNativeParser_findNativeTags(JN
     deleteMarkdownTagMemoryBlock(&tagList);
     return returnArray;
 }
+
 
 /**
  * JNI function to extract an escaped string
