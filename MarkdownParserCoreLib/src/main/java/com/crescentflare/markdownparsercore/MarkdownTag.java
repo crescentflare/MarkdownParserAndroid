@@ -9,64 +9,24 @@ public class MarkdownTag
     public enum Type
     {
         Normal,
-        Bold,
-        Italics,
-        BoldItalics,
-        Header1,
-        Header2,
-        Header3,
-        Header4,
-        Header5,
-        Header6;
-
-        public static Type headerForSize(int size)
-        {
-            switch (size)
-            {
-                case 1:
-                    return Header1;
-                case 2:
-                    return Header2;
-                case 3:
-                    return Header3;
-                case 4:
-                    return Header4;
-                case 5:
-                    return Header5;
-                case 6:
-                    return Header6;
-            }
-            return Normal;
-        }
-
-        public static Type textStyleForStrength(int strength)
-        {
-            switch (strength)
-            {
-                case 1:
-                    return Italics;
-                case 2:
-                    return Bold;
-                case 3:
-                    return BoldItalics;
-            }
-            return Normal;
-        }
-
-        public boolean isHeader()
-        {
-            return this == Header1 || this == Header2 || this == Header3 || this == Header4 || this == Header5 || this == Header6;
-        }
-
-        public boolean isTextStyle()
-        {
-            return this == Bold || this == Italics || this == BoldItalics;
-        }
+        TextStyle,
+        Header
     }
 
-    public Type type;
-    public int startPosition;
-    public int endPosition;
-    public int startText;
-    public int endText;
+    public static final int FLAG_NONE = 0x0;
+    public static final int FLAG_ITALICS = 0x1;
+    public static final int FLAG_BOLD = 0x2;
+    public static final int FLAG_BOLDITALICS = FLAG_BOLD | FLAG_ITALICS;
+    public static final int FLAG_STRIKETHROUGH = 0x4;
+    public static final int FLAG_TEXTSTYLE = FLAG_ITALICS | FLAG_BOLD | FLAG_STRIKETHROUGH;
+    public static final int FLAG_ESCAPED = 0x40000000;
+
+    public Type type = Type.Normal;
+    public int flags = FLAG_NONE;
+    public int startPosition = -1;
+    public int endPosition = -1;
+    public int startText = -1;
+    public int endText = -1;
+    public int sizeForType = 1;
+    public int nativeInfo[] = null;
 }

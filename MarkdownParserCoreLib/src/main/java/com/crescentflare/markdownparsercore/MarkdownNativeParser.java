@@ -54,10 +54,15 @@ public class MarkdownNativeParser implements MarkdownParser
         MarkdownTag tag = new MarkdownTag();
         position *= FIELD_COUNT;
         tag.type = getConvertedTagType(nativeTags[position]);
+        tag.flags = nativeTags[position + 1];
         tag.startPosition = nativeTags[position + 2];
-        tag.endPosition = nativeTags[position + 4];
-        tag.startText = nativeTags[position + 6];
-        tag.endText = nativeTags[position + 8];
+        tag.endPosition = nativeTags[position + 3];
+        tag.startText = nativeTags[position + 4];
+        tag.endText = nativeTags[position + 5];
+        tag.sizeForType = nativeTags[position + 8];
+        tag.nativeInfo = new int[2];
+        tag.nativeInfo[0] = nativeTags[position + 6];
+        tag.nativeInfo[1] = nativeTags[position + 7];
         return tag;
     }
 
@@ -68,23 +73,9 @@ public class MarkdownNativeParser implements MarkdownParser
             case 0:
                 return MarkdownTag.Type.Normal;
             case 1:
-                return MarkdownTag.Type.Italics;
+                return MarkdownTag.Type.TextStyle;
             case 2:
-                return MarkdownTag.Type.Bold;
-            case 3:
-                return MarkdownTag.Type.BoldItalics;
-            case 4:
-                return MarkdownTag.Type.Header1;
-            case 5:
-                return MarkdownTag.Type.Header2;
-            case 6:
-                return MarkdownTag.Type.Header3;
-            case 7:
-                return MarkdownTag.Type.Header4;
-            case 8:
-                return MarkdownTag.Type.Header5;
-            case 9:
-                return MarkdownTag.Type.Header6;
+                return MarkdownTag.Type.Header;
         }
         return MarkdownTag.Type.Normal;
     }
@@ -94,11 +85,27 @@ public class MarkdownNativeParser implements MarkdownParser
      */
     public String extractText(String markdownText, MarkdownTag tag)
     {
+        if ((tag.flags & MarkdownTag.FLAG_ESCAPED) > 0)
+        {
+            if (tag.nativeInfo != null)
+            {
+                return escapedSubstring(markdownText, tag.nativeInfo[1], tag.endText - tag.startText);
+            }
+        }
         return markdownText.substring(tag.startText, tag.endText);
     }
 
     public String extractFull(String markdownText, MarkdownTag tag)
     {
+        if ((tag.flags & MarkdownTag.FLAG_ESCAPED) > 0)
+        {
+            if (tag.nativeInfo != null)
+            {
+                return escapedSubstring(markdownText, tag.nativeInfo[0], tag.endPosition - tag.startPosition);
+            }
+        }
         return markdownText.substring(tag.startPosition, tag.endPosition);
     }
+
+    private native String escapedSubstring(String text, int bytePosition, int length);
 }
