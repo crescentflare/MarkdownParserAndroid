@@ -228,11 +228,6 @@ MARKDOWN_TAG *makeHeaderTag(const char *markdownText, const STRING_POSITION maxL
         unsigned char charSize = UTF_CHAR_SIZE(chr);
         if (charSize != 1)
         {
-            if (charSize == 0)
-            {
-                freeTag(tag);
-                return NULL;
-            }
             chr = PARSER_IGNORE_CHAR;
         }
         if (chr == '\\' && markdownText[i.bytePos + 1] != '\n')
@@ -297,11 +292,6 @@ MARKDOWN_TAG *makeTextStyleTag(const char *markdownText, const STRING_POSITION m
         unsigned char charSize = UTF_CHAR_SIZE(chr);
         if (charSize != 1)
         {
-            if (charSize == 0)
-            {
-                freeTag(tag);
-                return NULL;
-            }
             chr = PARSER_IGNORE_CHAR;
         }
         if (chr == '\\' && markdownText[i.bytePos + 1] != '\n')
@@ -387,10 +377,6 @@ MARKDOWN_TAG *searchStylingTag(const char *markdownText, const STRING_POSITION m
         unsigned char charSize = UTF_CHAR_SIZE(chr);
         if (charSize != 1)
         {
-            if (charSize == 0)
-            {
-                return NULL;
-            }
             chr = PARSER_IGNORE_CHAR;
         }
         if (chr == '\\')
@@ -476,10 +462,6 @@ void addParagraphedNormalTag(MARKDOWN_TAG_MEMORY_BLOCK *tagList, MARKDOWN_TAG *s
         unsigned char charSize = UTF_CHAR_SIZE(chr);
         if (charSize != 1)
         {
-            if (charSize == 0)
-            {
-                return;
-            }
             chr = PARSER_IGNORE_CHAR;
         }
         if (chr == '\\' && markdownText[i.bytePos + 1] != '\n')
@@ -627,10 +609,6 @@ Java_com_crescentflare_markdownparsercore_MarkdownNativeParser_escapedSubstring(
             int charSize = UTF_CHAR_SIZE(chr);
             if (charSize != 1)
             {
-                if (charSize == 0)
-                {
-                    break;
-                }
                 chr = PARSER_IGNORE_CHAR;
             }
             if (chr == '\\' && text[srcPos + 1] != '\n')
