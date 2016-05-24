@@ -78,6 +78,24 @@ void tagDefaults(MARKDOWN_TAG *tag)
     tag->sizeForType = 1;
 }
 
+MARKDOWN_TAG *newTag()
+{
+    MARKDOWN_TAG *tag = malloc(sizeof(MARKDOWN_TAG));
+    if (tag)
+    {
+        tagDefaults(tag);
+    }
+    return tag;
+}
+
+void freeTag(MARKDOWN_TAG *tag)
+{
+    if (tag)
+    {
+        free(tag);
+    }
+}
+
 int flagsForTextStrength(int textStrength)
 {
     switch (textStrength)
@@ -169,12 +187,11 @@ MARKDOWN_TAG *tagFromBlock(const MARKDOWN_TAG_MEMORY_BLOCK *block, const int pos
  */
 MARKDOWN_TAG *makeNormalTag(const char *markdownText, const STRING_POSITION position, const STRING_POSITION endPosition)
 {
-    MARKDOWN_TAG *tag = malloc(sizeof(MARKDOWN_TAG));
+    MARKDOWN_TAG *tag = newTag();
     if (tag == NULL)
     {
         return NULL;
     }
-    tagDefaults(tag);
     tag->type = MARKDOWN_TAG_NORMAL;
     tag->startPosition = position;
     tag->startText = position;
@@ -191,18 +208,17 @@ MARKDOWN_TAG *makeNormalTag(const char *markdownText, const STRING_POSITION posi
     {
         return tag;
     }
-    free(tag);
+    freeTag(tag);
     return NULL;
 }
 
 MARKDOWN_TAG *makeHeaderTag(const char *markdownText, const STRING_POSITION maxLength, const STRING_POSITION position)
 {
-    MARKDOWN_TAG *tag = malloc(sizeof(MARKDOWN_TAG));
+    MARKDOWN_TAG *tag = newTag();
     if (tag == NULL)
     {
         return NULL;
     }
-    tagDefaults(tag);
     int headerSize = 0;
     tag->startPosition = position;
     STRING_POSITION i;
@@ -214,7 +230,7 @@ MARKDOWN_TAG *makeHeaderTag(const char *markdownText, const STRING_POSITION maxL
         {
             if (charSize == 0)
             {
-                free(tag);
+                freeTag(tag);
                 return NULL;
             }
             chr = PARSER_IGNORE_CHAR;
@@ -259,18 +275,17 @@ MARKDOWN_TAG *makeHeaderTag(const char *markdownText, const STRING_POSITION maxL
     {
         return tag;
     }
-    free(tag);
+    freeTag(tag);
     return NULL;
 }
 
 MARKDOWN_TAG *makeTextStyleTag(const char *markdownText, const STRING_POSITION maxLength, const STRING_POSITION position)
 {
-    MARKDOWN_TAG *tag = malloc(sizeof(MARKDOWN_TAG));
+    MARKDOWN_TAG *tag = newTag();
     if (tag == NULL)
     {
         return NULL;
     }
-    tagDefaults(tag);
     int styleStrength = 0;
     int needStyleStrength = 0;
     char tagChr = markdownText[position.bytePos];
@@ -284,7 +299,7 @@ MARKDOWN_TAG *makeTextStyleTag(const char *markdownText, const STRING_POSITION m
         {
             if (charSize == 0)
             {
-                free(tag);
+                freeTag(tag);
                 return NULL;
             }
             chr = PARSER_IGNORE_CHAR;
@@ -354,7 +369,7 @@ MARKDOWN_TAG *makeTextStyleTag(const char *markdownText, const STRING_POSITION m
     {
         return tag;
     }
-    free(tag);
+    freeTag(tag);
     return NULL;
 }
 
@@ -406,10 +421,9 @@ void addNestedStylingTags(MARKDOWN_TAG_MEMORY_BLOCK *tagList, MARKDOWN_TAG *styl
         nestedTag->flags |= stylingTag->flags & MARKDOWN_FLAG_TEXTSTYLE;
 
         //Add part of found styling tag before nested style
-        MARKDOWN_TAG *beforeNestedTag = malloc(sizeof(MARKDOWN_TAG));
+        MARKDOWN_TAG *beforeNestedTag = newTag();
         if (beforeNestedTag)
         {
-            tagDefaults(beforeNestedTag);
             beforeNestedTag->type = stylingTag->type;
             beforeNestedTag->startPosition = stylingTag->startPosition;
             beforeNestedTag->startText = stylingTag->startText;
@@ -420,17 +434,16 @@ void addNestedStylingTags(MARKDOWN_TAG_MEMORY_BLOCK *tagList, MARKDOWN_TAG *styl
             {
                 addTagToBlock(tagList, beforeNestedTag);
             }
-            free(beforeNestedTag);
+            freeTag(beforeNestedTag);
         }
 
         //Add found nested style tag recursively
         addNestedStylingTags(tagList, nestedTag, markdownText, maxLength);
 
         //Add part of found styling tag after nested style
-        MARKDOWN_TAG *afterNestedTag = malloc(sizeof(MARKDOWN_TAG));
+        MARKDOWN_TAG *afterNestedTag = newTag();
         if (afterNestedTag)
         {
-            tagDefaults(afterNestedTag);
             afterNestedTag->type = stylingTag->type;
             afterNestedTag->startPosition = nestedTag->endPosition;
             afterNestedTag->startText = nestedTag->endPosition;
@@ -441,17 +454,14 @@ void addNestedStylingTags(MARKDOWN_TAG_MEMORY_BLOCK *tagList, MARKDOWN_TAG *styl
             {
                 addTagToBlock(tagList, afterNestedTag);
             }
-            free(afterNestedTag);
+            freeTag(afterNestedTag);
         }
     }
     else
     {
         addTagToBlock(tagList, stylingTag);
     }
-    if (nestedTag)
-    {
-        free(nestedTag);
-    }
+    freeTag(nestedTag);
 }
 
 void addParagraphedNormalTag(MARKDOWN_TAG_MEMORY_BLOCK *tagList, MARKDOWN_TAG *stylingTag, const char *markdownText, const STRING_POSITION maxLength)
@@ -486,10 +496,9 @@ void addParagraphedNormalTag(MARKDOWN_TAG_MEMORY_BLOCK *tagList, MARKDOWN_TAG *s
             }
             if (newlineCount > 1)
             {
-                MARKDOWN_TAG *tag = malloc(sizeof(MARKDOWN_TAG));
+                MARKDOWN_TAG *tag = newTag();
                 if (tag)
                 {
-                    tagDefaults(tag);
                     tag->type = MARKDOWN_TAG_NORMAL;
                     tag->startPosition = stylingTag->startPosition;
                     tag->startText = stylingTag->startText;
@@ -504,7 +513,7 @@ void addParagraphedNormalTag(MARKDOWN_TAG_MEMORY_BLOCK *tagList, MARKDOWN_TAG *s
                     stylingTag->startPosition.chrPos = i.chrPos + 1;
                     stylingTag->startText.bytePos = i.bytePos + 1;
                     stylingTag->startText.chrPos = i.chrPos + 1;
-                    free(tag);
+                    freeTag(tag);
                 }
                 foundEscapedChar = 0;
                 newlineCount = 0;
@@ -558,7 +567,7 @@ Java_com_crescentflare_markdownparsercore_MarkdownNativeParser_findNativeTags(JN
             }
             position = stylingTag->endPosition;
             processing = 1;
-            free(stylingTag);
+            freeTag(stylingTag);
         }
         else
         {
