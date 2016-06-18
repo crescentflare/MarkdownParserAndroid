@@ -45,6 +45,7 @@ public class CoreParserTest
                 new SimpleMarkdownTag(MarkdownTag.Type.Normal, MarkdownTag.FLAG_NONE, " which should be formatted correctly.\nAlso new lines should work properly."),
                 new SimpleMarkdownTag(MarkdownTag.Type.Header, 3, MarkdownTag.FLAG_NONE, "Caption 3"),
                 new SimpleMarkdownTag(MarkdownTag.Type.Normal, MarkdownTag.FLAG_ESCAPED, "The caption above is a bit smaller. Below add more lines to start a new *paragraph*."),
+                new SimpleMarkdownTag(MarkdownTag.Type.Paragraph, MarkdownTag.FLAG_NONE, ""),
                 new SimpleMarkdownTag(MarkdownTag.Type.Normal, MarkdownTag.FLAG_NONE, "New paragraph here with "),
                 new SimpleMarkdownTag(MarkdownTag.Type.TextStyle, MarkdownTag.FLAG_STRIKETHROUGH, "strike through text in "),
                 new SimpleMarkdownTag(MarkdownTag.Type.TextStyle, MarkdownTag.FLAG_STRIKETHROUGH | MarkdownTag.FLAG_BOLD, "bold"),

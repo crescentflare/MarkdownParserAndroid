@@ -73,8 +73,10 @@ public class MarkdownNativeParser implements MarkdownParser
             case 0:
                 return MarkdownTag.Type.Normal;
             case 1:
-                return MarkdownTag.Type.TextStyle;
+                return MarkdownTag.Type.Paragraph;
             case 2:
+                return MarkdownTag.Type.TextStyle;
+            case 3:
                 return MarkdownTag.Type.Header;
         }
         return MarkdownTag.Type.Normal;

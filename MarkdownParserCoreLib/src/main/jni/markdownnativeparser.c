@@ -30,6 +30,7 @@ static const int MARKDOWN_FLAG_ESCAPED = 0x40000000;
 typedef enum
 {
     MARKDOWN_TAG_NORMAL = 0,
+    MARKDOWN_TAG_PARAGRAPH,
     MARKDOWN_TAG_TEXTSTYLE,
     MARKDOWN_TAG_HEADER
 }MARKDOWN_TAG_TYPE;
@@ -110,6 +111,11 @@ int flagsForTextStrength(int textStrength)
     return 0;
 }
 
+char isWhitespace(int chr)
+{
+    return chr == ' ' || chr == '\n' || chr == '\r' || chr == '\t';
+}
+
 
 /**
  * Struct and functions to handle the memory block of found markdown tags
@@ -147,7 +153,7 @@ void deleteMarkdownTagMemoryBlock(MARKDOWN_TAG_MEMORY_BLOCK *block)
 
 void addTagToBlock(MARKDOWN_TAG_MEMORY_BLOCK *block, const MARKDOWN_TAG *tag)
 {
-    if (!block)
+    if (!block || !tag)
     {
         return;
     }
@@ -171,6 +177,15 @@ void addTagToBlock(MARKDOWN_TAG_MEMORY_BLOCK *block, const MARKDOWN_TAG *tag)
     block->tagCount++;
 }
 
+void addTagToBlockAndFree(MARKDOWN_TAG_MEMORY_BLOCK *block, MARKDOWN_TAG *tag)
+{
+    addTagToBlock(block, tag);
+    if (tag)
+    {
+        freeTag(tag);
+    }
+}
+
 MARKDOWN_TAG *tagFromBlock(const MARKDOWN_TAG_MEMORY_BLOCK *block, const int position)
 {
     if (position < 0 || position > block->tagCount)
@@ -185,7 +200,22 @@ MARKDOWN_TAG *tagFromBlock(const MARKDOWN_TAG_MEMORY_BLOCK *block, const int pos
 /**
  * Find tags based on start position and iterating to find the end position
  */
-MARKDOWN_TAG *makeNormalTag(const char *markdownText, const STRING_POSITION position, const STRING_POSITION endPosition)
+MARKDOWN_TAG *makeParagraphTag(const STRING_POSITION position)
+{
+    MARKDOWN_TAG *paragraphTag = newTag();
+    if (paragraphTag == NULL)
+    {
+        return NULL;
+    }
+    paragraphTag->type = MARKDOWN_TAG_PARAGRAPH;
+    paragraphTag->startPosition = position;
+    paragraphTag->startText = position;
+    paragraphTag->endPosition = position;
+    paragraphTag->endText = position;
+    return paragraphTag;
+}
+
+MARKDOWN_TAG *makeNormalTag(const char *markdownText, const STRING_POSITION startPosition, const STRING_POSITION endPosition, const STRING_POSITION startText, const STRING_POSITION endText)
 {
     MARKDOWN_TAG *tag = newTag();
     if (tag == NULL)
@@ -193,10 +223,10 @@ MARKDOWN_TAG *makeNormalTag(const char *markdownText, const STRING_POSITION posi
         return NULL;
     }
     tag->type = MARKDOWN_TAG_NORMAL;
-    tag->startPosition = position;
-    tag->startText = position;
+    tag->startPosition = startPosition;
+    tag->startText = startText;
     tag->endPosition = endPosition;
-    tag->endText = endPosition;
+    tag->endText = endText;
     if (markdownText[endPosition.bytePos - 1] == '\n')
     {
         tag->endPosition.bytePos--;
@@ -204,12 +234,17 @@ MARKDOWN_TAG *makeNormalTag(const char *markdownText, const STRING_POSITION posi
         tag->endText.bytePos--;
         tag->endText.chrPos--;
     }
-    if (tag->startPosition.chrPos < tag->endPosition.chrPos)
+    if (tag->startText.chrPos < tag->endText.chrPos)
     {
         return tag;
     }
     freeTag(tag);
     return NULL;
+}
+
+MARKDOWN_TAG *makeNormalTagSimple(const char *markdownText, const STRING_POSITION startText, const STRING_POSITION endText)
+{
+    return makeNormalTag(markdownText, startText, endText, startText, endText);
 }
 
 MARKDOWN_TAG *makeHeaderTag(const char *markdownText, const STRING_POSITION maxLength, const STRING_POSITION position)
@@ -452,10 +487,16 @@ void addNestedStylingTags(MARKDOWN_TAG_MEMORY_BLOCK *tagList, MARKDOWN_TAG *styl
 
 void addParagraphedNormalTag(MARKDOWN_TAG_MEMORY_BLOCK *tagList, MARKDOWN_TAG *stylingTag, const char *markdownText, const STRING_POSITION maxLength)
 {
-    char foundEscapedChar = 0;
+    char foundEscapedChar = 0, foundParagraphBreak = 0;
     int newlineCount = 0;
+    STRING_POSITION lineStart = stylingTag->startText;
     STRING_POSITION endParagraph = { 0, 0 };
+    STRING_POSITION foundPrintableCharAt = { -1, -1 };
     STRING_POSITION i;
+    if (stylingTag->startText.chrPos > 0 && markdownText[stylingTag->startText.bytePos - 1] != '\n')
+    {
+        foundPrintableCharAt = stylingTag->startText;
+    }
     for (i = stylingTag->startText; i.chrPos < stylingTag->endText.chrPos; INCREASE_STRING_POSITION(i, markdownText))
     {
         char chr = markdownText[i.bytePos];
@@ -469,7 +510,16 @@ void addParagraphedNormalTag(MARKDOWN_TAG_MEMORY_BLOCK *tagList, MARKDOWN_TAG *s
             foundEscapedChar = 1;
             continue;
         }
+        if (foundPrintableCharAt.chrPos < 0 && !isWhitespace(chr))
+        {
+            foundPrintableCharAt = lineStart;
+        }
         if (chr == '\n')
+        {
+            lineStart.bytePos = i.bytePos + 1;
+            lineStart.chrPos = i.chrPos + 1;
+        }
+        if (chr == '\n' && foundPrintableCharAt.chrPos >= 0)
         {
             newlineCount++;
             if (newlineCount == 1)
@@ -478,26 +528,28 @@ void addParagraphedNormalTag(MARKDOWN_TAG_MEMORY_BLOCK *tagList, MARKDOWN_TAG *s
             }
             if (newlineCount > 1)
             {
-                MARKDOWN_TAG *tag = newTag();
-                if (tag)
+                if (foundParagraphBreak)
                 {
-                    tag->type = MARKDOWN_TAG_NORMAL;
-                    tag->startPosition = stylingTag->startPosition;
-                    tag->startText = stylingTag->startText;
-                    tag->endPosition = endParagraph;
-                    tag->endText = endParagraph;
+                    addTagToBlockAndFree(tagList, makeParagraphTag(stylingTag->startText));
+                }
+                MARKDOWN_TAG *normalTag = makeNormalTag(markdownText, stylingTag->startPosition, endParagraph, foundPrintableCharAt, endParagraph);
+                if (normalTag)
+                {
                     if (foundEscapedChar)
                     {
-                        tag->flags |= MARKDOWN_FLAG_ESCAPED;
+                        normalTag->flags |= MARKDOWN_FLAG_ESCAPED;
                     }
-                    addTagToBlock(tagList, tag);
+                    addTagToBlock(tagList, normalTag);
                     stylingTag->startPosition.bytePos = i.bytePos + 1;
                     stylingTag->startPosition.chrPos = i.chrPos + 1;
                     stylingTag->startText.bytePos = i.bytePos + 1;
                     stylingTag->startText.chrPos = i.chrPos + 1;
-                    freeTag(tag);
+                    freeTag(normalTag);
                 }
                 foundEscapedChar = 0;
+                foundParagraphBreak = 1;
+                foundPrintableCharAt.bytePos = -1;
+                foundPrintableCharAt.chrPos = -1;
                 newlineCount = 0;
             }
         }
@@ -506,11 +558,22 @@ void addParagraphedNormalTag(MARKDOWN_TAG_MEMORY_BLOCK *tagList, MARKDOWN_TAG *s
             newlineCount = 0;
         }
     }
-    if (foundEscapedChar)
+    if (foundPrintableCharAt.chrPos >= 0)
     {
-        stylingTag->flags |= MARKDOWN_FLAG_ESCAPED;
+        if (foundParagraphBreak)
+        {
+            addTagToBlockAndFree(tagList, makeParagraphTag(stylingTag->startText));
+        }
+        stylingTag->startText = foundPrintableCharAt;
+        if (foundEscapedChar)
+        {
+            stylingTag->flags |= MARKDOWN_FLAG_ESCAPED;
+        }
+        if (stylingTag->startText.chrPos < stylingTag->endText.chrPos)
+        {
+            addTagToBlock(tagList, stylingTag);
+        }
     }
-    addTagToBlock(tagList, stylingTag);
 }
 
 
@@ -533,7 +596,7 @@ Java_com_crescentflare_markdownparsercore_MarkdownNativeParser_findNativeTags(JN
         {
             if (stylingTag->startPosition.chrPos > position.chrPos)
             {
-                MARKDOWN_TAG *tag = makeNormalTag(markdownText, position, stylingTag->startPosition);
+                MARKDOWN_TAG *tag = makeNormalTagSimple(markdownText, position, stylingTag->startPosition);
                 if (tag)
                 {
                     addParagraphedNormalTag(&tagList, tag, markdownText, maxLength);
@@ -561,7 +624,7 @@ Java_com_crescentflare_markdownparsercore_MarkdownNativeParser_findNativeTags(JN
     //Add final tag if there is a bit of string left to handle
     if (position.chrPos < maxLength.chrPos)
     {
-        MARKDOWN_TAG *tag = makeNormalTag(markdownText, position, maxLength);
+        MARKDOWN_TAG *tag = makeNormalTagSimple(markdownText, position, maxLength);
         if (tag)
         {
             addParagraphedNormalTag(&tagList, tag, markdownText, maxLength);

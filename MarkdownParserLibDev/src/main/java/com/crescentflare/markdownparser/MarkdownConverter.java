@@ -31,6 +31,9 @@ public class MarkdownConverter
                 case Normal:
                     htmlString += parser.extractText(markdownText, tag).replaceAll("\\n", "<br/>");
                     break;
+                case Paragraph:
+                    htmlString += "<br/><br/>";
+                    break;
                 case TextStyle:
                 {
                     String openTag = "", closeTag = "";
@@ -79,6 +82,10 @@ public class MarkdownConverter
                     }
                     builder.append(text);
                     break;
+                }
+                case Paragraph:
+                {
+                    builder.append("\n\n");
                 }
                 case TextStyle:
                 {

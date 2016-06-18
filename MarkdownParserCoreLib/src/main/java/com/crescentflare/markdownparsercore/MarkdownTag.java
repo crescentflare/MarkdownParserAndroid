@@ -9,6 +9,7 @@ public class MarkdownTag
     public enum Type
     {
         Normal,
+        Paragraph,
         TextStyle,
         Header
     }

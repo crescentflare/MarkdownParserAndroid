@@ -169,8 +169,12 @@ public class MarkdownJavaParser implements MarkdownParser
 
     private void addParagraphedNormalTag(final List<MarkdownTag> foundTags, final MarkdownTag stylingTag, final String markdownText, final int maxLength)
     {
-        boolean foundEscapedChar = false;
-        int newlineCount = 0, endParagraph = 0;
+        boolean foundEscapedChar = false, foundParagraphBreak = false;
+        int lineStart = stylingTag.startText, newlineCount = 0, endParagraph = 0, foundPrintableCharAt = -1;
+        if (stylingTag.startText > 0 && markdownText.charAt(stylingTag.startText - 1) != '\n')
+        {
+            foundPrintableCharAt = stylingTag.startText;
+        }
         for (int i = stylingTag.startText; i < stylingTag.endText; i++)
         {
             char chr = markdownText.charAt(i);
@@ -179,7 +183,15 @@ public class MarkdownJavaParser implements MarkdownParser
                 foundEscapedChar = true;
                 continue;
             }
+            if (foundPrintableCharAt < 0 && !isWhitespace(chr))
+            {
+                foundPrintableCharAt = lineStart;
+            }
             if (chr == '\n')
+            {
+                lineStart = i + 1;
+            }
+            if (chr == '\n' && foundPrintableCharAt >= 0)
             {
                 newlineCount++;
                 if (newlineCount == 1)
@@ -188,20 +200,21 @@ public class MarkdownJavaParser implements MarkdownParser
                 }
                 if (newlineCount > 1)
                 {
-                    MarkdownTag paragraphTag = new MarkdownTag();
-                    paragraphTag.type = MarkdownTag.Type.Normal;
-                    paragraphTag.startPosition = stylingTag.startPosition;
-                    paragraphTag.startText = stylingTag.startText;
-                    paragraphTag.endPosition = endParagraph;
-                    paragraphTag.endText = endParagraph;
+                    if (foundParagraphBreak)
+                    {
+                        foundTags.add(makeParagraphTag(stylingTag.startText));
+                    }
+                    MarkdownTag normalTag = makeNormalTag(markdownText, stylingTag.startPosition, endParagraph, foundPrintableCharAt, endParagraph);
                     if (foundEscapedChar)
                     {
-                        paragraphTag.flags |= MarkdownTag.FLAG_ESCAPED;
+                        normalTag.flags |= MarkdownTag.FLAG_ESCAPED;
                     }
-                    foundTags.add(paragraphTag);
+                    foundTags.add(normalTag);
                     stylingTag.startPosition = i + 1;
                     stylingTag.startText = i + 1;
                     foundEscapedChar = false;
+                    foundParagraphBreak = true;
+                    foundPrintableCharAt = -1;
                     newlineCount = 0;
                 }
             }
@@ -210,30 +223,56 @@ public class MarkdownJavaParser implements MarkdownParser
                 newlineCount = 0;
             }
         }
-        if (foundEscapedChar)
+        if (foundPrintableCharAt >= 0)
         {
-            stylingTag.flags |= MarkdownTag.FLAG_ESCAPED;
+            if (foundParagraphBreak)
+            {
+                foundTags.add(makeParagraphTag(stylingTag.startText));
+            }
+            stylingTag.startText = foundPrintableCharAt;
+            if (foundEscapedChar)
+            {
+                stylingTag.flags |= MarkdownTag.FLAG_ESCAPED;
+            }
+            if (stylingTag.startText < stylingTag.endText)
+            {
+                foundTags.add(stylingTag);
+            }
         }
-        foundTags.add(stylingTag);
     }
 
     /**
      * Find tags based on start position and iterating to find the end position
      */
-    private MarkdownTag makeNormalTag(final String markdownText, final int position, final int endPosition)
+    private MarkdownTag makeParagraphTag(final int position)
+    {
+        MarkdownTag paragraphTag = new MarkdownTag();
+        paragraphTag.type = MarkdownTag.Type.Paragraph;
+        paragraphTag.startPosition = position;
+        paragraphTag.startText = position;
+        paragraphTag.endPosition = position;
+        paragraphTag.endText = position;
+        return paragraphTag;
+    }
+
+    private MarkdownTag makeNormalTag(final String markdownText, final int startText, final int endText)
+    {
+        return makeNormalTag(markdownText, startText, endText, startText, endText);
+    }
+
+    private MarkdownTag makeNormalTag(final String markdownText, final int startPosition, final int endPosition, final int startText, final int endText)
     {
         MarkdownTag normalTag = new MarkdownTag();
         normalTag.type = MarkdownTag.Type.Normal;
-        normalTag.startPosition = position;
-        normalTag.startText = position;
+        normalTag.startPosition = startPosition;
+        normalTag.startText = startText;
         normalTag.endPosition = endPosition;
-        normalTag.endText = endPosition;
+        normalTag.endText = endText;
         if (markdownText.charAt(endPosition - 1) == '\n')
         {
-            normalTag.endPosition--;
             normalTag.endText--;
         }
-        if (normalTag.startPosition < normalTag.endPosition)
+        if (normalTag.startText < normalTag.endText)
         {
             return normalTag;
         }
@@ -377,5 +416,10 @@ public class MarkdownJavaParser implements MarkdownParser
                 return MarkdownTag.FLAG_BOLDITALICS;
         }
         return 0;
+    }
+
+    private boolean isWhitespace(char chr)
+    {
+        return chr == ' ' || chr == '\n' || chr == '\r' || chr == '\t';
     }
 }
