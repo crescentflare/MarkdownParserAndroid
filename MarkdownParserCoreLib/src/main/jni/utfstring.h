@@ -62,7 +62,7 @@ public:
     UTFStringIndex operator+(int count) const;
     UTFStringIndex operator-(int count) const;
 
-private:
+public:
     static const unsigned char charSize(const char chr)
     {
         return (unsigned char)((chr & 0x80) == 0x0 ? 1 : ((chr & 0xE0) == 0xC0 ? 2 : ((chr & 0xF0) == 0xE0 ? 3 : ((chr & 0xF8) == 0xF0 ? 4 : 0))));

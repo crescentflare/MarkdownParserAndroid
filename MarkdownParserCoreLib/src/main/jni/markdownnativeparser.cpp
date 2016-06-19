@@ -3,14 +3,6 @@
 #include "utfstring.h"
 
 /**
- * Constant, struct, macro's and utility functions to traverse UTF8 strings
- */
-static const char PARSER_IGNORE_CHAR = 'A';
-
-#define UTF_CHAR_SIZE(chr) (unsigned char)((chr & 0x80) == 0x0 ? 1 : ((chr & 0xE0) == 0xC0 ? 2 : ((chr & 0xF0) == 0xE0 ? 3 : ((chr & 0xF8) == 0xF0 ? 4 : 1))))
-
-
-/**
  * Constants, enum, struct and utility functions for markdown tags
  */
 static const int MARKDOWN_FLAG_NONE = 0x0;
@@ -628,10 +620,14 @@ Java_com_crescentflare_markdownparsercore_MarkdownNativeParser_escapedSubstring(
         for (i = 0; i < length; i++)
         {
             char chr = text[srcPos];
-            int charSize = UTF_CHAR_SIZE(chr);
+            int charSize = UTFStringIndex::charSize(chr);
             if (charSize != 1)
             {
-                chr = PARSER_IGNORE_CHAR;
+                if (charSize == 0)
+                {
+                    charSize = 1;
+                }
+                chr = 0;
             }
             if (chr == '\\' && text[srcPos + 1] != '\n')
             {
