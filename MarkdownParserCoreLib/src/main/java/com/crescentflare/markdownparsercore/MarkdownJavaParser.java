@@ -14,6 +14,7 @@ public class MarkdownJavaParser implements MarkdownParser
      */
     public MarkdownTag[] findTags(String markdownText)
     {
+        //Loop over string and find tags
         final List<MarkdownTag> foundTags = new ArrayList<>();
         final int maxLength = markdownText.length();
         int position = 0;
@@ -48,6 +49,8 @@ public class MarkdownJavaParser implements MarkdownParser
             }
         }
         while (processing);
+
+        //Add final tag if there is a bit of string left to handle
         if (position < maxLength)
         {
             MarkdownTag normalTag = makeNormalTag(markdownText, position, maxLength);

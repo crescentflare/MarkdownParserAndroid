@@ -70,13 +70,13 @@ public class MarkdownNativeParser implements MarkdownParser
     {
         switch (nativeEnumValue)
         {
-            case 0:
-                return MarkdownTag.Type.Normal;
             case 1:
-                return MarkdownTag.Type.Paragraph;
+                return MarkdownTag.Type.Normal;
             case 2:
-                return MarkdownTag.Type.TextStyle;
+                return MarkdownTag.Type.Paragraph;
             case 3:
+                return MarkdownTag.Type.TextStyle;
+            case 4:
                 return MarkdownTag.Type.Header;
         }
         return MarkdownTag.Type.Normal;
