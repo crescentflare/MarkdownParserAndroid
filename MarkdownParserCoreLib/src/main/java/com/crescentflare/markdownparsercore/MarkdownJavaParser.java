@@ -170,7 +170,8 @@ public class MarkdownJavaParser implements MarkdownParser
     private void addParagraphedNormalTag(final List<MarkdownTag> foundTags, final MarkdownTag stylingTag, final String markdownText, final int maxLength)
     {
         boolean foundEscapedChar = false, foundParagraphBreak = false;
-        int lineStart = stylingTag.startText, newlineCount = 0, endParagraph = 0, foundPrintableCharAt = -1;
+        int lineStart = stylingTag.startText, endParagraph = -1, foundPrintableCharAt = -1;
+        int newlineCount = 0;
         if (stylingTag.startText > 0 && markdownText.charAt(stylingTag.startText - 1) != '\n')
         {
             foundPrintableCharAt = stylingTag.startText;
