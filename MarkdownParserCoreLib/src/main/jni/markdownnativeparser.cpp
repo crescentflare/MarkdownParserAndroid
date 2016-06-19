@@ -81,7 +81,7 @@ void tagDefaults(MARKDOWN_TAG *tag)
 
 MARKDOWN_TAG *newTag()
 {
-    MARKDOWN_TAG *tag = malloc(sizeof(MARKDOWN_TAG));
+    MARKDOWN_TAG *tag = (MARKDOWN_TAG *)malloc(sizeof(MARKDOWN_TAG));
     if (tag)
     {
         tagDefaults(tag);
@@ -580,14 +580,16 @@ void addParagraphedNormalTag(MARKDOWN_TAG_MEMORY_BLOCK *tagList, MARKDOWN_TAG *s
 /**
  * JNI function to find all supported markdown tags
  */
+extern "C"
+{
 JNIEXPORT jintArray JNICALL
 Java_com_crescentflare_markdownparsercore_MarkdownNativeParser_findNativeTags(JNIEnv *env, jobject instance, jstring markdownText_)
 {
     //Loop over string and find tags
     MARKDOWN_TAG_MEMORY_BLOCK tagList = newMarkdownTagMemoryBlock();
-    const char *markdownText = (*env)->GetStringUTFChars(env, markdownText_, 0);
-    STRING_POSITION maxLength = { strlen(markdownText), (*env)->GetStringLength(env, markdownText_) };
-    STRING_POSITION position = { 0, 0 };
+    const char *markdownText = env->GetStringUTFChars(markdownText_, 0);
+    STRING_POSITION maxLength = {(int) strlen(markdownText), env->GetStringLength(markdownText_)};
+    STRING_POSITION position = {0, 0};
     char processing;
     do
     {
@@ -596,7 +598,8 @@ Java_com_crescentflare_markdownparsercore_MarkdownNativeParser_findNativeTags(JN
         {
             if (stylingTag->startPosition.chrPos > position.chrPos)
             {
-                MARKDOWN_TAG *tag = makeNormalTagSimple(markdownText, position, stylingTag->startPosition);
+                MARKDOWN_TAG *tag = makeNormalTagSimple(markdownText, position,
+                                                        stylingTag->startPosition);
                 if (tag)
                 {
                     addParagraphedNormalTag(&tagList, tag, markdownText, maxLength);
@@ -633,33 +636,35 @@ Java_com_crescentflare_markdownparsercore_MarkdownNativeParser_findNativeTags(JN
 
     //Convert tags into a java array, clean up and return
     jintArray returnArray = NULL;
-    jint *convertedValues = malloc(tagList.tagCount * tagFieldCount() * sizeof(jint));
+    jint *convertedValues = (jint *) malloc(tagList.tagCount * tagFieldCount() * sizeof(jint));
     if (convertedValues)
     {
-        returnArray = (*env)->NewIntArray(env, tagList.tagCount * tagFieldCount());
+        returnArray = env->NewIntArray(tagList.tagCount * tagFieldCount());
         int i;
         for (i = 0; i < tagList.tagCount; i++)
         {
             fillTagToArray(tagFromBlock(&tagList, i), &convertedValues[i * tagFieldCount()]);
         }
-        (*env)->SetIntArrayRegion(env, returnArray, 0, tagList.tagCount * tagFieldCount(), convertedValues);
+        env->SetIntArrayRegion(returnArray, 0, tagList.tagCount * tagFieldCount(), convertedValues);
         free(convertedValues);
     }
-    (*env)->ReleaseStringUTFChars(env, markdownText_, markdownText);
+    env->ReleaseStringUTFChars(markdownText_, markdownText);
     deleteMarkdownTagMemoryBlock(&tagList);
     return returnArray;
 }
-
+}
 
 /**
  * JNI function to extract an escaped string
  */
+extern "C"
+{
 JNIEXPORT jstring JNICALL
 Java_com_crescentflare_markdownparsercore_MarkdownNativeParser_escapedSubstring(JNIEnv *env, jobject instance, jstring text_, jint bytePosition, jint length)
 {
     jstring returnValue = NULL;
-    const char *text = (*env)->GetStringUTFChars(env, text_, 0);
-    char *extractedText = malloc((size_t)length * 4);
+    const char *text = env->GetStringUTFChars(text_, 0);
+    char *extractedText = (char *) malloc((size_t) length * 4);
     if (extractedText)
     {
         int srcPos = bytePosition;
@@ -695,9 +700,10 @@ Java_com_crescentflare_markdownparsercore_MarkdownNativeParser_escapedSubstring(
             destPos += bytesTraversed;
         }
         extractedText[destPos] = 0;
-        returnValue = (*env)->NewStringUTF(env, extractedText);
+        returnValue = env->NewStringUTF(extractedText);
         free(extractedText);
     }
-    (*env)->ReleaseStringUTFChars(env, text_, text);
+    env->ReleaseStringUTFChars(text_, text);
     return returnValue;
+}
 }
