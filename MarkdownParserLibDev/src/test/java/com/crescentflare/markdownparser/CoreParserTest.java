@@ -35,7 +35,7 @@ public class CoreParserTest
         SimpleMarkdownTag[] expectedTags = new SimpleMarkdownTag[]
         {
                 new SimpleMarkdownTag(MarkdownTag.Type.Normal, MarkdownTag.FLAG_NONE, "Text"),
-                new SimpleMarkdownTag(MarkdownTag.Type.Paragraph, MarkdownTag.FLAG_NONE, ""),
+                new SimpleMarkdownTag(MarkdownTag.Type.Paragraph, 1, MarkdownTag.FLAG_NONE, ""),
                 new SimpleMarkdownTag(MarkdownTag.Type.Normal, MarkdownTag.FLAG_NONE, "Another")
         };
         assertTags(markdownTextLines, expectedTags);
@@ -60,14 +60,14 @@ public class CoreParserTest
         SimpleMarkdownTag[] expectedTags = new SimpleMarkdownTag[]
         {
                 new SimpleMarkdownTag(MarkdownTag.Type.Normal, MarkdownTag.FLAG_NONE, "Some text"),
-                new SimpleMarkdownTag(MarkdownTag.Type.Paragraph, MarkdownTag.FLAG_NONE, ""),
+                new SimpleMarkdownTag(MarkdownTag.Type.Paragraph, 2, MarkdownTag.FLAG_NONE, ""),
                 new SimpleMarkdownTag(MarkdownTag.Type.Header, 1, MarkdownTag.FLAG_NONE, "First header"),
-                new SimpleMarkdownTag(MarkdownTag.Type.Paragraph, MarkdownTag.FLAG_NONE, ""),
+                new SimpleMarkdownTag(MarkdownTag.Type.Paragraph, 1, MarkdownTag.FLAG_NONE, ""),
                 new SimpleMarkdownTag(MarkdownTag.Type.Normal, MarkdownTag.FLAG_NONE, "Additional text"),
                 new SimpleMarkdownTag(MarkdownTag.Type.Normal, MarkdownTag.FLAG_NONE, "And more"),
-                new SimpleMarkdownTag(MarkdownTag.Type.Paragraph, MarkdownTag.FLAG_NONE, ""),
+                new SimpleMarkdownTag(MarkdownTag.Type.Paragraph, 2, MarkdownTag.FLAG_NONE, ""),
                 new SimpleMarkdownTag(MarkdownTag.Type.Header, 2, MarkdownTag.FLAG_NONE, "Last header"),
-                new SimpleMarkdownTag(MarkdownTag.Type.Paragraph, MarkdownTag.FLAG_NONE, ""),
+                new SimpleMarkdownTag(MarkdownTag.Type.Paragraph, 1, MarkdownTag.FLAG_NONE, ""),
                 new SimpleMarkdownTag(MarkdownTag.Type.Normal, MarkdownTag.FLAG_NONE, "Final text")
         };
         assertTags(markdownTextLines, expectedTags);
@@ -99,21 +99,21 @@ public class CoreParserTest
         SimpleMarkdownTag[] expectedTags = new SimpleMarkdownTag[]
         {
                 new SimpleMarkdownTag(MarkdownTag.Type.Header, 1, MarkdownTag.FLAG_NONE, "A strange indented header"),
-                new SimpleMarkdownTag(MarkdownTag.Type.Paragraph, MarkdownTag.FLAG_NONE, ""),
+                new SimpleMarkdownTag(MarkdownTag.Type.Paragraph, 1, MarkdownTag.FLAG_NONE, ""),
                 new SimpleMarkdownTag(MarkdownTag.Type.Normal, MarkdownTag.FLAG_NONE, "Another piece of text"),
                 new SimpleMarkdownTag(MarkdownTag.Type.Normal, MarkdownTag.FLAG_NONE, ""),
                 new SimpleMarkdownTag(MarkdownTag.Type.Normal, MarkdownTag.FLAG_NONE, "Text with a space separator to prevent paragraph"),
-                new SimpleMarkdownTag(MarkdownTag.Type.Paragraph, MarkdownTag.FLAG_NONE, ""),
+                new SimpleMarkdownTag(MarkdownTag.Type.Paragraph, 1, MarkdownTag.FLAG_NONE, ""),
                 new SimpleMarkdownTag(MarkdownTag.Type.Normal, MarkdownTag.FLAG_NONE, "New paragraph"),
-                new SimpleMarkdownTag(MarkdownTag.Type.Paragraph, MarkdownTag.FLAG_NONE, ""),
+                new SimpleMarkdownTag(MarkdownTag.Type.Paragraph, 2, MarkdownTag.FLAG_NONE, ""),
                 new SimpleMarkdownTag(MarkdownTag.Type.Header, 1, MarkdownTag.FLAG_NONE, "Sudden header"),
-                new SimpleMarkdownTag(MarkdownTag.Type.Paragraph, MarkdownTag.FLAG_NONE, ""),
+                new SimpleMarkdownTag(MarkdownTag.Type.Paragraph, 1, MarkdownTag.FLAG_NONE, ""),
                 new SimpleMarkdownTag(MarkdownTag.Type.Normal, MarkdownTag.FLAG_NONE, "Text"),
-                new SimpleMarkdownTag(MarkdownTag.Type.Paragraph, MarkdownTag.FLAG_NONE, ""),
+                new SimpleMarkdownTag(MarkdownTag.Type.Paragraph, 1, MarkdownTag.FLAG_NONE, ""),
                 new SimpleMarkdownTag(MarkdownTag.Type.UnorderedList, 1, MarkdownTag.FLAG_NONE, "Bullet item"),
                 new SimpleMarkdownTag(MarkdownTag.Type.UnorderedList, 1, MarkdownTag.FLAG_NONE, "Second item"),
                 new SimpleMarkdownTag(MarkdownTag.Type.Normal, MarkdownTag.FLAG_NONE, "With some text"),
-                new SimpleMarkdownTag(MarkdownTag.Type.Paragraph, MarkdownTag.FLAG_NONE, ""),
+                new SimpleMarkdownTag(MarkdownTag.Type.Paragraph, 1, MarkdownTag.FLAG_NONE, ""),
                 new SimpleMarkdownTag(MarkdownTag.Type.Normal, MarkdownTag.FLAG_NONE, "New paragraph")
         };
         assertTags(markdownTextLines, expectedTags);
@@ -147,29 +147,29 @@ public class CoreParserTest
         {
                 new SimpleMarkdownTag(MarkdownTag.Type.Normal, MarkdownTag.FLAG_NONE, "Some text **before** the captions"),
                 new SimpleMarkdownTag(MarkdownTag.Type.TextStyle, 2, MarkdownTag.FLAG_NONE, "before"),
-                new SimpleMarkdownTag(MarkdownTag.Type.Paragraph, MarkdownTag.FLAG_NONE, ""),
+                new SimpleMarkdownTag(MarkdownTag.Type.Paragraph, 2, MarkdownTag.FLAG_NONE, ""),
                 new SimpleMarkdownTag(MarkdownTag.Type.Header, 1, MarkdownTag.FLAG_NONE, "Caption 1"),
-                new SimpleMarkdownTag(MarkdownTag.Type.Paragraph, MarkdownTag.FLAG_NONE, ""),
+                new SimpleMarkdownTag(MarkdownTag.Type.Paragraph, 1, MarkdownTag.FLAG_NONE, ""),
                 new SimpleMarkdownTag(MarkdownTag.Type.Normal, MarkdownTag.FLAG_NONE, "Some lines of _styled and **double styled** text_ which should be formatted correctly."),
                 new SimpleMarkdownTag(MarkdownTag.Type.TextStyle, 1, MarkdownTag.FLAG_NONE, "styled and **double styled** text"),
                 new SimpleMarkdownTag(MarkdownTag.Type.TextStyle, 2, MarkdownTag.FLAG_NONE, "double styled"),
                 new SimpleMarkdownTag(MarkdownTag.Type.Normal, MarkdownTag.FLAG_NONE, "Also new lines should work properly."),
-                new SimpleMarkdownTag(MarkdownTag.Type.Paragraph, MarkdownTag.FLAG_NONE, ""),
+                new SimpleMarkdownTag(MarkdownTag.Type.Paragraph, 2, MarkdownTag.FLAG_NONE, ""),
                 new SimpleMarkdownTag(MarkdownTag.Type.Header, 3, MarkdownTag.FLAG_NONE, "Caption 3"),
-                new SimpleMarkdownTag(MarkdownTag.Type.Paragraph, MarkdownTag.FLAG_NONE, ""),
+                new SimpleMarkdownTag(MarkdownTag.Type.Paragraph, 1, MarkdownTag.FLAG_NONE, ""),
                 new SimpleMarkdownTag(MarkdownTag.Type.Normal, MarkdownTag.FLAG_ESCAPED, "The caption above is a bit smaller. Below add more lines to start a new *paragraph*."),
-                new SimpleMarkdownTag(MarkdownTag.Type.Paragraph, MarkdownTag.FLAG_NONE, ""),
+                new SimpleMarkdownTag(MarkdownTag.Type.Paragraph, 1, MarkdownTag.FLAG_NONE, ""),
                 new SimpleMarkdownTag(MarkdownTag.Type.Normal, MarkdownTag.FLAG_NONE, "New paragraph here with ~~strike through text in **bold**~~."),
                 new SimpleMarkdownTag(MarkdownTag.Type.AlternativeTextStyle, 2, MarkdownTag.FLAG_NONE, "strike through text in **bold**"),
                 new SimpleMarkdownTag(MarkdownTag.Type.TextStyle, 2, MarkdownTag.FLAG_NONE, "bold"),
-                new SimpleMarkdownTag(MarkdownTag.Type.Paragraph, MarkdownTag.FLAG_NONE, ""),
+                new SimpleMarkdownTag(MarkdownTag.Type.Paragraph, 1, MarkdownTag.FLAG_NONE, ""),
                 new SimpleMarkdownTag(MarkdownTag.Type.UnorderedList, 1, MarkdownTag.FLAG_NONE, "A bullet list"),
                 new SimpleMarkdownTag(MarkdownTag.Type.UnorderedList, 1, MarkdownTag.FLAG_NONE, "Second bullet item"),
                 new SimpleMarkdownTag(MarkdownTag.Type.UnorderedList, 2, MarkdownTag.FLAG_NONE, "A nested item"),
                 new SimpleMarkdownTag(MarkdownTag.Type.UnorderedList, 1, MarkdownTag.FLAG_NONE, "Third bullet item"),
                 new SimpleMarkdownTag(MarkdownTag.Type.OrderedList, 2, MarkdownTag.FLAG_NONE, "Nested first item"),
                 new SimpleMarkdownTag(MarkdownTag.Type.OrderedList, 2, MarkdownTag.FLAG_NONE, "Nested second item"),
-                new SimpleMarkdownTag(MarkdownTag.Type.Paragraph, MarkdownTag.FLAG_NONE, ""),
+                new SimpleMarkdownTag(MarkdownTag.Type.Paragraph, 1, MarkdownTag.FLAG_NONE, ""),
                 new SimpleMarkdownTag(MarkdownTag.Type.Normal, MarkdownTag.FLAG_NONE, "And some text afterwards.")
         };
         assertTags(markdownTextLines, expectedTags);

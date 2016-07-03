@@ -67,6 +67,7 @@ public class MarkdownJavaParser implements MarkdownParser
                     paragraphTag.endPosition = nextLine.startPosition;
                     paragraphTag.startText = paragraphStartPos;
                     paragraphTag.endText = paragraphStartPos;
+                    paragraphTag.weight = nextLine.type == MarkdownTag.Type.Header ? 2 : 1;
                     foundTags.add(paragraphTag);
                     paragraphStartPos = -1;
                 }

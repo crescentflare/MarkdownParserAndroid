@@ -485,6 +485,7 @@ Java_com_crescentflare_markdownparsercore_MarkdownNativeParser_findNativeTags(JN
                 paragraphTag.endPosition = nextLine.startPosition;
                 paragraphTag.startText = paragraphStartPos;
                 paragraphTag.endText = paragraphStartPos;
+                paragraphTag.weight = nextLine.type == MARKDOWN_TAG_HEADER ? 2 : 1;
                 foundTags.push_back(paragraphTag);
                 paragraphStartPos = UTFStringIndex(nullptr);
             }
