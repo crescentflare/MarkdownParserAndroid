@@ -3,6 +3,7 @@ package com.crescentflare.markdownparserexample;
 import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
 import android.text.Html;
+import android.text.TextUtils;
 import android.widget.TextView;
 
 import com.crescentflare.markdownparser.MarkdownConverter;
@@ -21,7 +22,7 @@ public class MainActivity extends AppCompatActivity
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        final String markdownText = getString(R.string.message);
+        final String markdownText = TextUtils.join("\n", getResources().getStringArray(R.array.markdown_test));
         if (TEST_HTML) //The Android HTML to spannable converter doesn't support strike-through text out of the box
         {
             String htmlString = MarkdownConverter.toHtmlString(markdownText);
