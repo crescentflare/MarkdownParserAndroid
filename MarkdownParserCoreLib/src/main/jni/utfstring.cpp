@@ -139,6 +139,11 @@ bool UTFStringIndex::operator==(const UTFStringIndex &compare)
     return utfCharArray == compare.utfCharArray && chrPos == compare.chrPos && bytePos == compare.bytePos;
 }
 
+bool UTFStringIndex::operator!=(const UTFStringIndex &compare)
+{
+    return !(utfCharArray == compare.utfCharArray && chrPos == compare.chrPos && bytePos == compare.bytePos);
+}
+
 bool UTFStringIndex::operator<=(const UTFStringIndex &compare)
 {
     return utfCharArray == compare.utfCharArray && chrPos <= compare.chrPos;

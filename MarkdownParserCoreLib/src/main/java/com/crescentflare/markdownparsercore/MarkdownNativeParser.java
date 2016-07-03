@@ -59,7 +59,7 @@ public class MarkdownNativeParser implements MarkdownParser
         tag.endPosition = nativeTags[position + 3];
         tag.startText = nativeTags[position + 4];
         tag.endText = nativeTags[position + 5];
-        tag.sizeForType = nativeTags[position + 8];
+        tag.weight = nativeTags[position + 8];
         tag.nativeInfo = new int[2];
         tag.nativeInfo[0] = nativeTags[position + 6];
         tag.nativeInfo[1] = nativeTags[position + 7];
@@ -77,7 +77,13 @@ public class MarkdownNativeParser implements MarkdownParser
             case 3:
                 return MarkdownTag.Type.TextStyle;
             case 4:
+                return MarkdownTag.Type.AlternativeTextStyle;
+            case 5:
                 return MarkdownTag.Type.Header;
+            case 6:
+                return MarkdownTag.Type.OrderedList;
+            case 7:
+                return MarkdownTag.Type.UnorderedList;
         }
         return MarkdownTag.Type.Normal;
     }

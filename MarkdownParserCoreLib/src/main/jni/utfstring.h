@@ -51,6 +51,7 @@ public:
 
 public:
     bool operator==(const UTFStringIndex &compare);
+    bool operator!=(const UTFStringIndex &compare);
     bool operator<=(const UTFStringIndex &compare);
     bool operator>=(const UTFStringIndex &compare);
     bool operator<(const UTFStringIndex &compare);

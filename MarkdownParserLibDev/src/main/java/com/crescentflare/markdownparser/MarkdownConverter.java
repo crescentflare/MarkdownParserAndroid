@@ -37,26 +37,24 @@ public class MarkdownConverter
                 case TextStyle:
                 {
                     String openTag = "", closeTag = "";
-                    if ((tag.flags & MarkdownTag.FLAG_ITALICS) > 0)
+                    if ((tag.weight & 1) > 0)
                     {
                         openTag += "<i>";
                         closeTag = "</i>" + closeTag;
                     }
-                    if ((tag.flags & MarkdownTag.FLAG_BOLD) > 0)
+                    if ((tag.weight & 2) > 0)
                     {
                         openTag += "<b>";
                         closeTag = "</b>" + closeTag;
                     }
-                    if ((tag.flags & MarkdownTag.FLAG_STRIKETHROUGH) > 0)
-                    {
-                        openTag += "<strike>";
-                        closeTag = "</strike>" + closeTag;
-                    }
                     htmlString += openTag + parser.extractText(markdownText, tag).replaceAll("\\n", "<br/>") + closeTag;
                     break;
                 }
+                case AlternativeTextStyle:
+                    htmlString += "<strike>" + parser.extractText(markdownText, tag).replaceAll("\\n", "<br/>") + "</strike>";
+                    break;
                 case Header:
-                    htmlString += "<h" + tag.sizeForType + ">" + parser.extractText(markdownText, tag) + "</h" + tag.sizeForType + ">";
+                    htmlString += "<h" + tag.weight + ">" + parser.extractText(markdownText, tag) + "</h" + tag.weight + ">";
                     break;
             }
         }
@@ -95,22 +93,18 @@ public class MarkdownConverter
                         builder.append("\n\n");
                     }
                     builder.append(text);
-                    if ((tag.flags & MarkdownTag.FLAG_STRIKETHROUGH) > 0)
-                    {
-                        builder.setSpan(new StrikethroughSpan(), builder.length() - text.length(), builder.length(), Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
-                    }
-                    if ((tag.flags & MarkdownTag.FLAG_BOLDITALICS) > 0)
+                    if (tag.weight > 0)
                     {
                         int typeface = Typeface.NORMAL;
-                        switch (tag.flags & MarkdownTag.FLAG_BOLDITALICS)
+                        switch (tag.weight)
                         {
-                            case MarkdownTag.FLAG_ITALICS:
+                            case 1:
                                 typeface = Typeface.ITALIC;
                                 break;
-                            case MarkdownTag.FLAG_BOLD:
+                            case 2:
                                 typeface = Typeface.BOLD;
                                 break;
-                            case MarkdownTag.FLAG_BOLDITALICS:
+                            case 3:
                                 typeface = Typeface.BOLD_ITALIC;
                                 break;
                         }
@@ -118,10 +112,21 @@ public class MarkdownConverter
                     }
                     break;
                 }
+                case AlternativeTextStyle:
+                {
+                    String text = parser.extractText(markdownText, tag);
+                    if (prevType == MarkdownTag.Type.Header)
+                    {
+                        builder.append("\n\n");
+                    }
+                    builder.append(text);
+                    builder.setSpan(new StrikethroughSpan(), builder.length() - text.length(), builder.length(), Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+                    break;
+                }
                 case Header:
                 {
                     float size = 1.0f;
-                    switch (tag.sizeForType)
+                    switch (tag.weight)
                     {
                         case 1:
                             size = 1.5f;
