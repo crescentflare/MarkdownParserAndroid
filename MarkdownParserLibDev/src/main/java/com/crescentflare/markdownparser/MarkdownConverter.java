@@ -26,6 +26,9 @@ import java.util.List;
  */
 public class MarkdownConverter
 {
+    /**
+     * HTML conversion handling
+     */
     public static String toHtmlString(String markdownText)
     {
         MarkdownParser parser = obtainParser(markdownText);
@@ -68,96 +71,9 @@ public class MarkdownConverter
         return htmlString;
     }
 
-    private static void appendSpannableBuilder(List<MarkdownTag> convertedTags, SpannableStringBuilder builder, String markdownText, MarkdownTag[] foundTags, int start)
-    {
-        MarkdownTag curTag = foundTags[start];
-        MarkdownTag processingTag = null;
-        int checkPosition = start + 1;
-        boolean processing = true;
-        while (processing)
-        {
-            MarkdownTag nextTag = checkPosition < foundTags.length ? foundTags[checkPosition] : null;
-            processing = false;
-            if (nextTag != null && nextTag.startPosition < curTag.endPosition)
-            {
-                if (processingTag == null)
-                {
-                    processingTag = new MarkdownTag();
-                    convertedTags.add(processingTag);
-                    processingTag.type = curTag.type;
-                    processingTag.weight = curTag.weight;
-                    processingTag.startText = builder.length();
-                    builder.append(markdownText.substring(curTag.startText, nextTag.startPosition)); //TODO: don't use substring but parser in-between extraction
-                    processingTag.endText = builder.length();
-                }
-                else
-                {
-                    builder.append(markdownText.substring(processingTag.endPosition, nextTag.startPosition)); //TODO: don't use substring but parser in-between extraction
-                    processingTag.endText = builder.length();
-                }
-                int prevConvertedTagSize = convertedTags.size();
-                appendSpannableBuilder(convertedTags, builder, markdownText, foundTags, checkPosition);
-                processingTag.endPosition = foundTags[checkPosition].endPosition;
-                checkPosition += convertedTags.size() - prevConvertedTagSize;
-                processing = true;
-            }
-            else
-            {
-                if (processingTag == null)
-                {
-                    processingTag = new MarkdownTag();
-                    convertedTags.add(processingTag);
-                    processingTag.type = curTag.type;
-                    processingTag.weight = curTag.weight;
-                    processingTag.startText = builder.length();
-                    builder.append(markdownText.substring(curTag.startText, curTag.endText)); //TODO: don't use substring but parser in-between extraction
-                    processingTag.endText = builder.length();
-                }
-                else
-                {
-                    builder.append(markdownText.substring(processingTag.endPosition, curTag.endText)); //TODO: don't use substring but parser in-between extraction
-                    processingTag.endText = builder.length();
-                }
-            }
-        }
-    }
-
-    public static float sizeForHeader(int weight)
-    {
-        if (weight >= 1 && weight < 6)
-        {
-            return 1.5f - (float)(weight - 1) * 0.1f;
-        }
-        return 1.0f;
-    }
-
-    public static int textStyleForWeight(int weight)
-    {
-        switch (weight)
-        {
-            case 1:
-                return Typeface.ITALIC;
-            case 2:
-                return Typeface.BOLD;
-            case 3:
-                return Typeface.BOLD_ITALIC;
-        }
-        return Typeface.NORMAL;
-    }
-
-    public static String bulletTokenForWeight(int weight)
-    {
-        if (weight == 2)
-        {
-            return "\u25E6 ";
-        }
-        else if (weight >= 3)
-        {
-            return "\u25AA ";
-        }
-        return "\u2022 ";
-    }
-
+    /**
+     * Spannable conversion handling
+     */
     public static Spanned toSpannable(String markdownText)
     {
         MarkdownParser parser = obtainParser(markdownText);
@@ -190,7 +106,7 @@ public class MarkdownConverter
             if (sectionTag.type == MarkdownTag.Type.Header || sectionTag.type == MarkdownTag.Type.OrderedList || sectionTag.type == MarkdownTag.Type.UnorderedList || sectionTag.type == MarkdownTag.Type.Normal)
             {
                 List<MarkdownTag> convertedTags = new ArrayList<>();
-                appendSpannableBuilder(convertedTags, builder, markdownText, foundTags, i);
+                appendSpannableBuilder(parser, convertedTags, builder, markdownText, foundTags, i);
                 i += convertedTags.size() - 1;
                 if (sectionTag.type == MarkdownTag.Type.OrderedList || sectionTag.type == MarkdownTag.Type.UnorderedList)
                 {
@@ -228,6 +144,100 @@ public class MarkdownConverter
         return builder;
     }
 
+    private static void appendSpannableBuilder(MarkdownParser parser, List<MarkdownTag> convertedTags, SpannableStringBuilder builder, String markdownText, MarkdownTag[] foundTags, int start)
+    {
+        MarkdownTag curTag = foundTags[start];
+        MarkdownTag intermediateTag = null;
+        MarkdownTag processingTag = null;
+        int checkPosition = start + 1;
+        boolean processing = true;
+        while (processing)
+        {
+            MarkdownTag nextTag = checkPosition < foundTags.length ? foundTags[checkPosition] : null;
+            processing = false;
+            if (nextTag != null && nextTag.startPosition < curTag.endPosition)
+            {
+                if (processingTag == null)
+                {
+                    processingTag = new MarkdownTag();
+                    convertedTags.add(processingTag);
+                    processingTag.type = curTag.type;
+                    processingTag.weight = curTag.weight;
+                    processingTag.startText = builder.length();
+                    builder.append(parser.extractTextBetween(markdownText, curTag, nextTag, MarkdownParser.ExtractBetweenMode.StartToNext));
+                    processingTag.endText = builder.length();
+                }
+                else
+                {
+                    builder.append(parser.extractTextBetween(markdownText, intermediateTag, nextTag, MarkdownParser.ExtractBetweenMode.IntermediateToNext));
+                    processingTag.endText = builder.length();
+                }
+                int prevConvertedTagSize = convertedTags.size();
+                appendSpannableBuilder(parser, convertedTags, builder, markdownText, foundTags, checkPosition);
+                intermediateTag = foundTags[checkPosition];
+                checkPosition += convertedTags.size() - prevConvertedTagSize;
+                processing = true;
+            }
+            else
+            {
+                if (processingTag == null)
+                {
+                    processingTag = new MarkdownTag();
+                    convertedTags.add(processingTag);
+                    processingTag.type = curTag.type;
+                    processingTag.weight = curTag.weight;
+                    processingTag.startText = builder.length();
+                    builder.append(parser.extractText(markdownText, curTag));
+                    processingTag.endText = builder.length();
+                }
+                else
+                {
+                    builder.append(parser.extractTextBetween(markdownText, intermediateTag, curTag, MarkdownParser.ExtractBetweenMode.IntermediateToEnd));
+                    processingTag.endText = builder.length();
+                }
+            }
+        }
+    }
+
+    private static float sizeForHeader(int weight)
+    {
+        if (weight >= 1 && weight < 6)
+        {
+            return 1.5f - (float)(weight - 1) * 0.1f;
+        }
+        return 1.0f;
+    }
+
+    private static int textStyleForWeight(int weight)
+    {
+        switch (weight)
+        {
+            case 1:
+                return Typeface.ITALIC;
+            case 2:
+                return Typeface.BOLD;
+            case 3:
+                return Typeface.BOLD_ITALIC;
+        }
+        return Typeface.NORMAL;
+    }
+
+    private static String bulletTokenForWeight(int weight)
+    {
+        if (weight == 2)
+        {
+            return "\u25E6 ";
+        }
+        else if (weight >= 3)
+        {
+            return "\u25AA ";
+        }
+        return "\u2022 ";
+    }
+
+    /**
+     * Obtain parser instance based on requirements
+     */
     private static MarkdownParser obtainParser(String text)
     {
         return text.length() > 128 ? new MarkdownNativeParser() : new MarkdownJavaParser();

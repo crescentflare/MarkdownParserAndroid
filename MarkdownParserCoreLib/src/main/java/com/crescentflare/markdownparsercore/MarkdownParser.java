@@ -8,7 +8,16 @@ package com.crescentflare.markdownparsercore;
  */
 public interface MarkdownParser
 {
+    enum ExtractBetweenMode
+    {
+        StartToNext,
+        IntermediateToNext,
+        IntermediateToEnd
+    }
+
     MarkdownTag[] findTags(String markdownText);
     String extractText(String markdownText, MarkdownTag tag);
+    String extractTextBetween(String markdownText, MarkdownTag startTag, MarkdownTag endTag, ExtractBetweenMode mode);
     String extractFull(String markdownText, MarkdownTag tag);
+    String extractFullBetween(String markdownText, MarkdownTag startTag, MarkdownTag endTag, ExtractBetweenMode mode);
 }

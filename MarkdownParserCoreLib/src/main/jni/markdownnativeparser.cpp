@@ -53,7 +53,7 @@ public:
 
 const unsigned char tagFieldCount()
 {
-    return 9;
+    return 11;
 }
 
 void fillTagToArray(const MarkdownTag *tag, jint *ptr)
@@ -67,8 +67,10 @@ void fillTagToArray(const MarkdownTag *tag, jint *ptr)
         ptr[4] = tag->startText.chrPos;
         ptr[5] = tag->endText.chrPos;
         ptr[6] = tag->startPosition.bytePos;
-        ptr[7] = tag->startText.bytePos;
-        ptr[8] = tag->weight;
+        ptr[7] = tag->endPosition.bytePos;
+        ptr[8] = tag->startText.bytePos;
+        ptr[9] = tag->endText.bytePos;
+        ptr[10] = tag->weight;
     }
 }
 

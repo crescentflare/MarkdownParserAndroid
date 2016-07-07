@@ -15,6 +15,14 @@ public class MarkdownNativeParser implements MarkdownParser
     }
 
     /**
+     * Definitions for native info
+     */
+    private static int NATIVE_INFO_START_POSITION = 0;
+    private static int NATIVE_INFO_END_POSITION = 1;
+    private static int NATIVE_INFO_START_TEXT = 2;
+    private static int NATIVE_INFO_END_TEXT = 3;
+
+    /**
      * Wrapper for finding markdown tags natively, most of the work is being done in the C source file
      */
     public MarkdownTag[] findTags(String markdownText)
@@ -38,7 +46,7 @@ public class MarkdownNativeParser implements MarkdownParser
     /**
      * Convert tags from native int array to java object
      */
-    private static final int FIELD_COUNT = 9;
+    private static final int FIELD_COUNT = 11;
 
     private int getTagCount(final int[] nativeTags)
     {
@@ -59,10 +67,12 @@ public class MarkdownNativeParser implements MarkdownParser
         tag.endPosition = nativeTags[position + 3];
         tag.startText = nativeTags[position + 4];
         tag.endText = nativeTags[position + 5];
-        tag.weight = nativeTags[position + 8];
-        tag.nativeInfo = new int[2];
-        tag.nativeInfo[0] = nativeTags[position + 6];
-        tag.nativeInfo[1] = nativeTags[position + 7];
+        tag.weight = nativeTags[position + 10];
+        tag.nativeInfo = new int[4];
+        tag.nativeInfo[NATIVE_INFO_START_POSITION] = nativeTags[position + 6];
+        tag.nativeInfo[NATIVE_INFO_END_POSITION] = nativeTags[position + 7];
+        tag.nativeInfo[NATIVE_INFO_START_TEXT] = nativeTags[position + 8];
+        tag.nativeInfo[NATIVE_INFO_END_TEXT] = nativeTags[position + 9];
         return tag;
     }
 
@@ -97,10 +107,51 @@ public class MarkdownNativeParser implements MarkdownParser
         {
             if (tag.nativeInfo != null)
             {
-                return escapedSubstring(markdownText, tag.nativeInfo[1], tag.endText - tag.startText);
+                return escapedSubstring(markdownText, tag.nativeInfo[NATIVE_INFO_START_TEXT], tag.endText - tag.startText);
             }
+            return escapedSubstringJava(markdownText, tag.startText, tag.endText);
         }
         return markdownText.substring(tag.startText, tag.endText);
+    }
+
+    public String extractTextBetween(String markdownText, MarkdownTag startTag, MarkdownTag endTag, ExtractBetweenMode mode)
+    {
+        int startPos = 0, endPos = 0;
+        switch (mode)
+        {
+            case StartToNext:
+                startPos = startTag.startText;
+                endPos = endTag.startPosition;
+                break;
+            case IntermediateToNext:
+                startPos = startTag.endPosition;
+                endPos = endTag.startPosition;
+                break;
+            case IntermediateToEnd:
+                startPos = startTag.endPosition;
+                endPos = endTag.endText;
+                break;
+        }
+        if ((startTag.flags & MarkdownTag.FLAG_ESCAPED) > 0)
+        {
+            if (startTag.nativeInfo != null)
+            {
+                int startNativePos = 0;
+                switch (mode)
+                {
+                    case StartToNext:
+                        startNativePos = startTag.nativeInfo[NATIVE_INFO_START_TEXT];
+                        break;
+                    case IntermediateToNext:
+                    case IntermediateToEnd:
+                        startNativePos = startTag.nativeInfo[NATIVE_INFO_END_POSITION];
+                        break;
+                }
+                return escapedSubstring(markdownText, startNativePos, endPos - startPos);
+            }
+            return escapedSubstringJava(markdownText, startPos, endPos);
+        }
+        return markdownText.substring(startPos, endPos);
     }
 
     public String extractFull(String markdownText, MarkdownTag tag)
@@ -109,11 +160,69 @@ public class MarkdownNativeParser implements MarkdownParser
         {
             if (tag.nativeInfo != null)
             {
-                return escapedSubstring(markdownText, tag.nativeInfo[0], tag.endPosition - tag.startPosition);
+                return escapedSubstring(markdownText, tag.nativeInfo[NATIVE_INFO_START_POSITION], tag.endPosition - tag.startPosition);
             }
+            return escapedSubstringJava(markdownText, tag.startPosition, tag.endPosition);
         }
         return markdownText.substring(tag.startPosition, tag.endPosition);
     }
 
+    public String extractFullBetween(String markdownText, MarkdownTag startTag, MarkdownTag endTag, ExtractBetweenMode mode)
+    {
+        int startPos = 0, endPos = 0;
+        switch (mode)
+        {
+            case StartToNext:
+                startPos = startTag.startPosition;
+                endPos = endTag.startPosition;
+                break;
+            case IntermediateToNext:
+                startPos = startTag.endPosition;
+                endPos = endTag.startPosition;
+                break;
+            case IntermediateToEnd:
+                startPos = startTag.endPosition;
+                endPos = endTag.endPosition;
+                break;
+        }
+        if ((startTag.flags & MarkdownTag.FLAG_ESCAPED) > 0)
+        {
+            if (startTag.nativeInfo != null)
+            {
+                int startNativePos = 0;
+                switch (mode)
+                {
+                    case StartToNext:
+                        startNativePos = startTag.nativeInfo[NATIVE_INFO_START_POSITION];
+                        break;
+                    case IntermediateToNext:
+                    case IntermediateToEnd:
+                        startNativePos = startTag.nativeInfo[NATIVE_INFO_END_POSITION];
+                        break;
+                }
+                return escapedSubstring(markdownText, startNativePos, endPos - startPos);
+            }
+            return escapedSubstringJava(markdownText, startPos, endPos);
+        }
+        return markdownText.substring(startPos, endPos);
+    }
+
     private native String escapedSubstring(String text, int bytePosition, int length);
+
+    private String escapedSubstringJava(String text, int startPosition, int endPosition)
+    {
+        String filteredText = "";
+        for (int i = startPosition; i < endPosition; i++)
+        {
+            char chr = text.charAt(i);
+            if (chr == '\\' && text.charAt(i + 1) != '\n')
+            {
+                filteredText += text.charAt(i + 1);
+                i++;
+                continue;
+            }
+            filteredText += chr;
+        }
+        return filteredText;
+    }
 }

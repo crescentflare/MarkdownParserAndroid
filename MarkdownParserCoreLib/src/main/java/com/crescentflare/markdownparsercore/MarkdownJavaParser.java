@@ -91,6 +91,31 @@ public class MarkdownJavaParser implements MarkdownParser
         return markdownText.substring(tag.startText, tag.endText);
     }
 
+    public String extractTextBetween(String markdownText, MarkdownTag startTag, MarkdownTag endTag, ExtractBetweenMode mode)
+    {
+        int startPos = 0, endPos = 0;
+        switch (mode)
+        {
+            case StartToNext:
+                startPos = startTag.startText;
+                endPos = endTag.startPosition;
+                break;
+            case IntermediateToNext:
+                startPos = startTag.endPosition;
+                endPos = endTag.startPosition;
+                break;
+            case IntermediateToEnd:
+                startPos = startTag.endPosition;
+                endPos = endTag.endText;
+                break;
+        }
+        if ((startTag.flags & MarkdownTag.FLAG_ESCAPED) > 0)
+        {
+            return escapedSubstring(markdownText, startPos, endPos);
+        }
+        return markdownText.substring(startPos, endPos);
+    }
+
     public String extractFull(String markdownText, MarkdownTag tag)
     {
         if ((tag.flags & MarkdownTag.FLAG_ESCAPED) > 0)
@@ -98,6 +123,31 @@ public class MarkdownJavaParser implements MarkdownParser
             return escapedSubstring(markdownText, tag.startPosition, tag.endPosition);
         }
         return markdownText.substring(tag.startPosition, tag.endPosition);
+    }
+
+    public String extractFullBetween(String markdownText, MarkdownTag startTag, MarkdownTag endTag, ExtractBetweenMode mode)
+    {
+        int startPos = 0, endPos = 0;
+        switch (mode)
+        {
+            case StartToNext:
+                startPos = startTag.startPosition;
+                endPos = endTag.startPosition;
+                break;
+            case IntermediateToNext:
+                startPos = startTag.endPosition;
+                endPos = endTag.startPosition;
+                break;
+            case IntermediateToEnd:
+                startPos = startTag.endPosition;
+                endPos = endTag.endPosition;
+                break;
+        }
+        if ((startTag.flags & MarkdownTag.FLAG_ESCAPED) > 0)
+        {
+            return escapedSubstring(markdownText, startPos, endPos);
+        }
+        return markdownText.substring(startPos, endPos);
     }
 
     private String escapedSubstring(String text, int startPosition, int endPosition)
