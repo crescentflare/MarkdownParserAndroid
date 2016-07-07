@@ -11,15 +11,13 @@ public class MarkdownTag
         Normal,
         Paragraph,
         TextStyle,
-        Header
+        AlternativeTextStyle,
+        Header,
+        OrderedList,
+        UnorderedList
     }
 
     public static final int FLAG_NONE = 0x0;
-    public static final int FLAG_ITALICS = 0x1;
-    public static final int FLAG_BOLD = 0x2;
-    public static final int FLAG_BOLDITALICS = FLAG_BOLD | FLAG_ITALICS;
-    public static final int FLAG_STRIKETHROUGH = 0x4;
-    public static final int FLAG_TEXTSTYLE = FLAG_ITALICS | FLAG_BOLD | FLAG_STRIKETHROUGH;
     public static final int FLAG_ESCAPED = 0x40000000;
 
     public Type type = Type.Normal;
@@ -28,6 +26,6 @@ public class MarkdownTag
     public int endPosition = -1;
     public int startText = -1;
     public int endText = -1;
-    public int sizeForType = 1;
+    public int weight = 0;
     public int nativeInfo[] = null;
 }

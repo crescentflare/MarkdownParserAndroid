@@ -3,6 +3,7 @@ package com.crescentflare.markdownparserexample;
 import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
 import android.text.Html;
+import android.text.TextUtils;
 import android.widget.TextView;
 
 import com.crescentflare.markdownparser.MarkdownConverter;
@@ -13,6 +14,11 @@ import com.crescentflare.markdownparser.MarkdownConverter;
  */
 public class MainActivity extends AppCompatActivity
 {
+    //Enable/disable conversion through HTML
+    //
+    //HTML doesn't support these markdown features without a custom tag handler:
+    //- Strike through text
+    //- Ordered and unordered lists
     static final boolean TEST_HTML = false;
 
     @Override
@@ -21,8 +27,8 @@ public class MainActivity extends AppCompatActivity
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        final String markdownText = getString(R.string.message);
-        if (TEST_HTML) //The Android HTML to spannable converter doesn't support strike-through text out of the box
+        final String markdownText = TextUtils.join("\n", getResources().getStringArray(R.array.markdown_test));
+        if (TEST_HTML)
         {
             String htmlString = MarkdownConverter.toHtmlString(markdownText);
             ((TextView)findViewById(R.id.activity_main_text)).setText(Html.fromHtml(htmlString), TextView.BufferType.SPANNABLE);

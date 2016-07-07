@@ -45,12 +45,14 @@ private:
 
 public:
     UTFStringIndex(UTFString *str);
+    UTFStringIndex(const UTFStringIndex &other);
     UTFStringIndex &increase(int count);
     UTFStringIndex &decrease(int count);
     bool valid();
 
 public:
     bool operator==(const UTFStringIndex &compare);
+    bool operator!=(const UTFStringIndex &compare);
     bool operator<=(const UTFStringIndex &compare);
     bool operator>=(const UTFStringIndex &compare);
     bool operator<(const UTFStringIndex &compare);

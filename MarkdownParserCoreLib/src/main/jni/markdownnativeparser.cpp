@@ -1,16 +1,13 @@
 #include <jni.h>
 #include <stdlib.h>
+#include <algorithm>
+#include <vector>
 #include "utfstring.h"
 
 /**
  * Constants, enum, struct and utility functions for markdown tags
  */
 static const int MARKDOWN_FLAG_NONE = 0x0;
-static const int MARKDOWN_FLAG_ITALICS = 0x1;
-static const int MARKDOWN_FLAG_BOLD = 0x2;
-static const int MARKDOWN_FLAG_BOLDITALICS = 0x3; //MARKDOWN_FLAG_BOLD | MARKDOWN_FLAG_ITALICS;
-static const int MARKDOWN_FLAG_STRIKETHROUGH = 0x4;
-static const int MARKDOWN_FLAG_TEXTSTYLE = 0x7; //MARKDOWN_FLAG_ITALICS | MARKDOWN_FLAG_BOLD | MARKDOWN_FLAG_STRIKETHROUGH;
 static const int MARKDOWN_FLAG_ESCAPED = 0x40000000;
 
 typedef enum
@@ -19,7 +16,10 @@ typedef enum
     MARKDOWN_TAG_NORMAL,
     MARKDOWN_TAG_PARAGRAPH,
     MARKDOWN_TAG_TEXTSTYLE,
-    MARKDOWN_TAG_HEADER
+    MARKDOWN_TAG_ALTERNATIVE_TEXTSTYLE,
+    MARKDOWN_TAG_HEADER,
+    MARKDOWN_TAG_ORDERED_LIST,
+    MARKDOWN_TAG_UNORDERED_LIST
 }MARKDOWN_TAG_TYPE;
 
 class MarkdownTag
@@ -31,7 +31,7 @@ public:
     UTFStringIndex endPosition = UTFStringIndex(nullptr);
     UTFStringIndex startText = UTFStringIndex(nullptr);
     UTFStringIndex endText = UTFStringIndex(nullptr);
-    int sizeForType = 1;
+    int weight = 1;
 public:
     bool valid()
     {
@@ -39,9 +39,19 @@ public:
     }
 };
 
+class MarkdownMarker
+{
+public:
+    int chr;
+    int weight;
+    UTFStringIndex position;
+public:
+    MarkdownMarker(int chr, int weight, UTFStringIndex position) : chr(chr), weight(weight), position(position){ }
+};
+
 const unsigned char tagFieldCount()
 {
-    return 9;
+    return 11;
 }
 
 void fillTagToArray(const MarkdownTag *tag, jint *ptr)
@@ -55,28 +65,11 @@ void fillTagToArray(const MarkdownTag *tag, jint *ptr)
         ptr[4] = tag->startText.chrPos;
         ptr[5] = tag->endText.chrPos;
         ptr[6] = tag->startPosition.bytePos;
-        ptr[7] = tag->startText.bytePos;
-        ptr[8] = tag->sizeForType;
+        ptr[7] = tag->endPosition.bytePos;
+        ptr[8] = tag->startText.bytePos;
+        ptr[9] = tag->endText.bytePos;
+        ptr[10] = tag->weight;
     }
-}
-
-int flagsForTextStrength(int textStrength)
-{
-    switch (textStrength)
-    {
-        case 1:
-            return MARKDOWN_FLAG_ITALICS;
-        case 2:
-            return MARKDOWN_FLAG_BOLD;
-        case 3:
-            return MARKDOWN_FLAG_BOLDITALICS;
-    }
-    return 0;
-}
-
-char isWhitespace(int chr)
-{
-    return chr == ' ' || chr == '\n' || chr == '\r' || chr == '\t';
 }
 
 
@@ -152,309 +145,279 @@ MarkdownTag *tagFromBlock(const MARKDOWN_TAG_MEMORY_BLOCK *block, const int posi
 
 
 /**
- * Find tags based on start position and iterating to find the end position
+ * Recursive function to process markdown markers into tags
  */
-MarkdownTag makeParagraphTag(const UTFStringIndex position)
+void processMarkers(std::vector<MarkdownTag> &addTags, std::vector<MarkdownMarker> &markers, int start, const int end, const int addFlags)
 {
-    MarkdownTag paragraphTag;
-    paragraphTag.type = MARKDOWN_TAG_PARAGRAPH;
-    paragraphTag.startPosition = position;
-    paragraphTag.startText = position;
-    paragraphTag.endPosition = position;
-    paragraphTag.endText = position;
-    return paragraphTag;
-}
-
-MarkdownTag makeNormalTag(UTFString &markdownText, const UTFStringIndex startPosition, const UTFStringIndex endPosition, const UTFStringIndex startText, const UTFStringIndex endText)
-{
-    MarkdownTag normalTag;
-    normalTag.type = MARKDOWN_TAG_NORMAL;
-    normalTag.startPosition = startPosition;
-    normalTag.startText = startText;
-    normalTag.endPosition = endPosition;
-    normalTag.endText = endText;
-    if (markdownText[endPosition - 1] == '\n')
+    bool processing = true;
+    while (processing && start < end)
     {
-        --normalTag.endText;
+        MarkdownMarker &marker = markers[start];
+        processing = false;
+        for (int i = start + 1; i < end; i++)
+        {
+            MarkdownMarker &checkMarker = markers[i];
+            if (checkMarker.chr == marker.chr && checkMarker.weight >= marker.weight)
+            {
+                MarkdownTag tag;
+                tag.type = checkMarker.chr == '~' ? MARKDOWN_TAG_ALTERNATIVE_TEXTSTYLE : MARKDOWN_TAG_TEXTSTYLE;
+                tag.weight = marker.weight;
+                tag.startPosition = marker.position;
+                tag.endPosition = checkMarker.position + marker.weight;
+                tag.startText = tag.startPosition + marker.weight;
+                tag.endText = checkMarker.position;
+                tag.flags = addFlags;
+                addTags.push_back(tag);
+                processMarkers(addTags, markers, start + 1, i, addFlags);
+                if (checkMarker.weight > marker.weight)
+                {
+                    checkMarker.weight -= marker.weight;
+                    start = i;
+                }
+                else
+                {
+                    start = i + 1;
+                }
+                processing = true;
+            }
+        }
+        if (!processing)
+        {
+            if (marker.weight > 1)
+            {
+                marker.weight--;
+                processing = true;
+            }
+            else
+            {
+                start++;
+            }
+        }
     }
-    if (normalTag.startText < normalTag.endText)
-    {
-        return normalTag;
-    }
-    return MarkdownTag();
 }
 
-MarkdownTag makeNormalTag(UTFString &markdownText, const UTFStringIndex startText, const UTFStringIndex endText)
+
+/**
+ * Add the section tag and add additional tags within the section
+ */
+bool tagSortCallback(MarkdownTag &lhs, MarkdownTag &rhs)
 {
-    return makeNormalTag(markdownText, startText, endText, startText, endText);
+    return (lhs.startPosition < rhs.startPosition);
 }
 
-MarkdownTag makeHeaderTag(UTFString &markdownText, const UTFStringIndex maxLength, const UTFStringIndex position)
+void addStyleTags(std::vector<MarkdownTag> &foundTags, const UTFString &markdownText, const MarkdownTag &sectionTag)
 {
-    MarkdownTag tag;
-    int headerSize = 0;
-    tag.startPosition = position;
-    for (UTFStringIndex i = position; i < maxLength; ++i)
+    //First add the main section tag
+    MarkdownTag mainTag;
+    mainTag.type = sectionTag.type;
+    mainTag.startPosition = sectionTag.startPosition;
+    mainTag.endPosition = sectionTag.endPosition;
+    mainTag.startText = sectionTag.startText;
+    mainTag.endText = sectionTag.endText;
+    mainTag.weight = sectionTag.weight;
+    mainTag.flags = sectionTag.flags;
+    foundTags.push_back(mainTag);
+
+    //Traverse string and find tag markers
+    std::vector<MarkdownMarker> tagMarkers;
+    std::vector<MarkdownTag> addTags;
+    UTFStringIndex maxLength = sectionTag.endText;
+    int curMarkerWeight = 0;
+    int curMarkerChar = 0;
+    for (UTFStringIndex i = sectionTag.startText; i < maxLength; ++i)
     {
         int chr = markdownText[i];
-        if (chr == '\\' && markdownText[i + 1] != '\n')
+        if (curMarkerChar != 0)
         {
-            tag.flags |= MARKDOWN_FLAG_ESCAPED;
+            if (chr == curMarkerChar)
+            {
+                curMarkerWeight++;
+            }
+            else
+            {
+                tagMarkers.push_back(MarkdownMarker(curMarkerChar, curMarkerWeight, i - curMarkerWeight));
+                curMarkerChar = 0;
+            }
+        }
+        if (curMarkerChar == 0)
+        {
+            if (chr == '*' || chr == '_' || chr == '~')
+            {
+                curMarkerChar = chr;
+                curMarkerWeight = 1;
+            }
+        }
+        if (chr == '\\')
+        {
             ++i;
+        }
+    }
+    if (curMarkerChar != 0)
+    {
+        tagMarkers.push_back(MarkdownMarker(curMarkerChar, curMarkerWeight, maxLength - curMarkerWeight));
+    }
+
+    //Sort tags to add and finally add them
+    processMarkers(addTags, tagMarkers, 0, tagMarkers.size(), sectionTag.flags);
+    std::sort(addTags.begin(), addTags.end(), tagSortCallback);
+    for (int i = 0; i < addTags.size(); i++)
+    {
+        foundTags.push_back(addTags[i]);
+    }
+}
+
+
+/**
+ * Scan a single line of text within the markdown document, return section tag
+ */
+MarkdownTag scanLine(const UTFString &markdownText, UTFStringIndex position, UTFStringIndex maxLength, MARKDOWN_TAG_TYPE sectionType)
+{
+    MarkdownTag styledTag;
+    MarkdownTag normalTag;
+    int skipChars = 0;
+    int chr = 0, nextChr = markdownText[position], secondNextChr = 0;
+    bool styleTagDefined = false, escaped = false;
+    bool headerTokenSequence = false;
+    if (position + 1 < maxLength)
+    {
+        secondNextChr = markdownText[position + 1];
+    }
+    normalTag.startPosition = position;
+    styledTag.startPosition = position;
+    for (UTFStringIndex i = position; i < maxLength; ++i)
+    {
+        chr = nextChr;
+        nextChr = secondNextChr;
+        if (i + 2 < maxLength)
+        {
+            secondNextChr = markdownText[i + 2];
+        }
+        if (skipChars > 0)
+        {
+            skipChars--;
             continue;
         }
-        if (!tag.startText.valid())
+        if (!escaped && chr == '\\')
         {
-            if (chr == '#' && headerSize < 6)
+            normalTag.flags = normalTag.flags | MARKDOWN_FLAG_ESCAPED;
+            styledTag.flags = styledTag.flags | MARKDOWN_FLAG_ESCAPED;
+            escaped = true;
+            continue;
+        }
+        if (escaped)
+        {
+            if (chr != '\n')
             {
-                headerSize++;
+                if (!normalTag.startText.valid())
+                {
+                    normalTag.startText = i;
+                }
+                if (!styledTag.startText.valid())
+                {
+                    styledTag.startText = i;
+                }
             }
-            else if (chr != ' ')
-            {
-                tag.startText = i;
-                tag.type = MARKDOWN_TAG_HEADER;
-                tag.sizeForType = headerSize;
-            }
+            normalTag.endText = i + 1;
+            styledTag.endText = i + 1;
         }
         else
         {
             if (chr == '\n')
             {
-                tag.endPosition = i + 1;
-                tag.endText = i;
+                normalTag.endPosition = i + 1;
+                styledTag.endPosition = i + 1;
                 break;
             }
-        }
-    }
-    if (!tag.endPosition.valid())
-    {
-        tag.endPosition = maxLength;
-        tag.endText = maxLength;
-    }
-    if (tag.startText.valid())
-    {
-        return tag;
-    }
-    return MarkdownTag();
-}
-
-MarkdownTag makeTextStyleTag(UTFString &markdownText, const UTFStringIndex maxLength, const UTFStringIndex position)
-{
-    MarkdownTag tag;
-    int styleStrength = 0;
-    int needStyleStrength = 0;
-    int tagChr = markdownText[position];
-    tag.startPosition = position;
-    for (UTFStringIndex i = position; i < maxLength; ++i)
-    {
-        int chr = markdownText[i];
-        if (chr == '\\' && markdownText[i + 1] != '\n')
-        {
-            tag.flags |= MARKDOWN_FLAG_ESCAPED;
-            ++i;
-            continue;
-        }
-        if (!tag.startText.valid())
-        {
-            if (chr == tagChr && ((tagChr != '~' && styleStrength < 3) || (tagChr == '~' && styleStrength < 2)))
+            if (chr != ' ')
             {
-                styleStrength++;
-            }
-            else if (tagChr != '~' || styleStrength == 2)
-            {
-                tag.startText = i;
-                tag.type = MARKDOWN_TAG_TEXTSTYLE;
-                needStyleStrength = styleStrength;
-            }
-        }
-        else
-        {
-            if (chr == tagChr)
-            {
-                needStyleStrength--;
-                if (needStyleStrength == 0)
+                if (!normalTag.startText.valid())
                 {
-                    if (tagChr != '~')
+                    normalTag.startText = i;
+                }
+                normalTag.endText = i + 1;
+            }
+            if (!styleTagDefined)
+            {
+                bool allowNewParagraph = sectionType == MARKDOWN_TAG_PARAGRAPH || sectionType == MARKDOWN_TAG_HEADER;
+                bool continueBulletList = sectionType == MARKDOWN_TAG_UNORDERED_LIST || sectionType == MARKDOWN_TAG_ORDERED_LIST;
+                if (chr == '#')
+                {
+                    styledTag.type = MARKDOWN_TAG_HEADER;
+                    styledTag.weight = 1;
+                    styleTagDefined = true;
+                    headerTokenSequence = true;
+                }
+                else if ((allowNewParagraph || continueBulletList) && (chr == '*' || chr == '-' || chr == '+') && nextChr == ' ' && (i.chrPos - position.chrPos) % 2 == 0)
+                {
+                    styledTag.type = MARKDOWN_TAG_UNORDERED_LIST;
+                    styledTag.weight = 1 + (i.chrPos - position.chrPos) / 2;
+                    styleTagDefined = true;
+                    skipChars = 1;
+                }
+                else if ((allowNewParagraph || continueBulletList) && chr >= '0' && chr <= '9' && nextChr == '.' && secondNextChr == ' ' && (i.chrPos - position.chrPos) % 2 == 0)
+                {
+                    styledTag.type = MARKDOWN_TAG_ORDERED_LIST;
+                    styledTag.weight = 1 + (i.chrPos - position.chrPos) / 2;
+                    styleTagDefined = true;
+                    skipChars = 2;
+                }
+                else if (chr != ' ')
+                {
+                    styledTag.type = MARKDOWN_TAG_NORMAL;
+                    styleTagDefined = true;
+                }
+            }
+            else if (styledTag.type != MARKDOWN_TAG_NORMAL)
+            {
+                if (styledTag.type == MARKDOWN_TAG_HEADER)
+                {
+                    if (chr == '#' && headerTokenSequence)
                     {
-                        tag.flags |= flagsForTextStrength(styleStrength);
+                        styledTag.weight++;
                     }
                     else
                     {
-                        tag.flags |= MARKDOWN_FLAG_STRIKETHROUGH;
+                        headerTokenSequence = false;
                     }
-                    tag.endPosition = i + 1;
-                    tag.endText = i + 1 - styleStrength;
-                    break;
-                }
-            }
-            else if (needStyleStrength != styleStrength)
-            {
-                if (tagChr != '~' && styleStrength - needStyleStrength > 0)
-                {
-                    tag.flags |= flagsForTextStrength(styleStrength - needStyleStrength);
-                    tag.startText -= needStyleStrength;
-                    tag.endPosition = i;
-                    tag.endText = i - (styleStrength - needStyleStrength);
-                    break;
+                    if (chr != '#' && chr != ' ' && !styledTag.startText.valid())
+                    {
+                        styledTag.startText = i;
+                        styledTag.endText = i + 1;
+                    }
+                    else if ((chr != '#' || (nextChr != '#' && nextChr != '\n' && nextChr != ' ' && nextChr != 0)) && chr != ' ' && styledTag.startText.valid())
+                    {
+                        styledTag.endText = i + 1;
+                    }
                 }
                 else
                 {
-                    needStyleStrength = styleStrength;
+                    if (chr != ' ')
+                    {
+                        if (!styledTag.startText.valid())
+                        {
+                            styledTag.startText = i;
+                        }
+                        styledTag.endText = i + 1;
+                    }
                 }
             }
         }
+        escaped = false;
     }
-    if (tag.startText.valid() && tag.endText.valid() && (tag.flags & MARKDOWN_FLAG_TEXTSTYLE) > 0)
+    if (styleTagDefined && styledTag.type != MARKDOWN_TAG_NORMAL && styledTag.startText.valid() && styledTag.endText > styledTag.startText)
     {
-        return tag;
+        if (!styledTag.endPosition.valid())
+        {
+            styledTag.endPosition = maxLength;
+        }
+        return styledTag;
     }
-    return MarkdownTag();
-}
-
-
-/**
- * Search for types of tag
- */
-MarkdownTag searchStylingTag(UTFString &markdownText, const UTFStringIndex maxLength, const UTFStringIndex position)
-{
-    int prevChr = 0;
-    for (UTFStringIndex i = position; i < maxLength; ++i)
+    if (!normalTag.endPosition.valid())
     {
-        const int chr = markdownText[i];
-        if (chr == '\\')
-        {
-            ++i;
-            continue;
-        }
-        if (chr == '#' && (prevChr == '\n' || prevChr == 0 || i == markdownText.startIndex()))
-        {
-            return makeHeaderTag(markdownText, maxLength, i);
-        }
-        if (chr == '*' || chr == '_' || chr == '~')
-        {
-            return makeTextStyleTag(markdownText, maxLength, i);
-        }
-        prevChr = chr;
+        normalTag.endPosition = maxLength;
     }
-    return MarkdownTag();
-}
-
-void addNestedStylingTags(MARKDOWN_TAG_MEMORY_BLOCK *foundTags, const MarkdownTag stylingTag, UTFString &markdownText, const UTFStringIndex maxLength)
-{
-    MarkdownTag nestedTag = searchStylingTag(markdownText, stylingTag.endText, stylingTag.startText);
-    if (nestedTag.valid() && nestedTag.type != MARKDOWN_TAG_HEADER && nestedTag.endPosition < stylingTag.endPosition)
-    {
-        //Combine found styling tag with nested tag
-        nestedTag.flags |= stylingTag.flags & MARKDOWN_FLAG_TEXTSTYLE;
-
-        //Add part of found styling tag before nested style
-        MarkdownTag beforeNestedTag;
-        beforeNestedTag.type = stylingTag.type;
-        beforeNestedTag.startPosition = stylingTag.startPosition;
-        beforeNestedTag.startText = stylingTag.startText;
-        beforeNestedTag.endPosition = nestedTag.startPosition;
-        beforeNestedTag.endText = nestedTag.startPosition;
-        beforeNestedTag.flags = stylingTag.flags;
-        if (beforeNestedTag.startText < beforeNestedTag.endText)
-        {
-            addTagToBlock(foundTags, beforeNestedTag);
-        }
-
-        //Add found nested style tag recursively
-        addNestedStylingTags(foundTags, nestedTag, markdownText, maxLength);
-
-        //Add part of found styling tag after nested style
-        MarkdownTag afterNestedTag;
-        afterNestedTag.type = stylingTag.type;
-        afterNestedTag.startPosition = nestedTag.endPosition;
-        afterNestedTag.startText = nestedTag.endPosition;
-        afterNestedTag.endPosition = stylingTag.endPosition;
-        afterNestedTag.endText = stylingTag.endText;
-        afterNestedTag.flags = stylingTag.flags;
-        if (afterNestedTag.startText < afterNestedTag.endText)
-        {
-            addTagToBlock(foundTags, afterNestedTag);
-        }
-    }
-    else
-    {
-        addTagToBlock(foundTags, stylingTag);
-    }
-}
-
-void addParagraphedNormalTag(MARKDOWN_TAG_MEMORY_BLOCK *foundTags, MarkdownTag stylingTag, UTFString &markdownText, const UTFStringIndex maxLength)
-{
-    bool foundEscapedChar = false, foundParagraphBreak = false;
-    UTFStringIndex lineStart = stylingTag.startText, endParagraph(nullptr), foundPrintableCharAt(nullptr);
-    int newlineCount = 0;
-    if (stylingTag.startText > markdownText.startIndex() && markdownText[stylingTag.startText - 1] != '\n')
-    {
-        foundPrintableCharAt = stylingTag.startText;
-    }
-    for (UTFStringIndex i = stylingTag.startText; i < stylingTag.endText; ++i)
-    {
-        int chr = markdownText[i];
-        if (chr == '\\' && markdownText[i + 1] != '\n')
-        {
-            foundEscapedChar = true;
-            continue;
-        }
-        if (!foundPrintableCharAt.valid() && !isWhitespace(chr))
-        {
-            foundPrintableCharAt = lineStart;
-        }
-        if (chr == '\n')
-        {
-            lineStart = i + 1;
-        }
-        if (chr == '\n' && foundPrintableCharAt.valid())
-        {
-            newlineCount++;
-            if (newlineCount == 1)
-            {
-                endParagraph = i;
-            }
-            if (newlineCount > 1)
-            {
-                if (foundParagraphBreak)
-                {
-                    addTagToBlock(foundTags, makeParagraphTag(stylingTag.startText));
-                }
-                MarkdownTag normalTag = makeNormalTag(markdownText, stylingTag.startPosition, endParagraph, foundPrintableCharAt, endParagraph);
-                if (foundEscapedChar)
-                {
-                    normalTag.flags |= MARKDOWN_FLAG_ESCAPED;
-                }
-                addTagToBlock(foundTags, normalTag);
-                stylingTag.startPosition = i + 1;
-                stylingTag.startText = i + 1;
-                foundEscapedChar = false;
-                foundParagraphBreak = true;
-                foundPrintableCharAt = UTFStringIndex(nullptr);
-                newlineCount = 0;
-            }
-        }
-        else if (chr != ' ')
-        {
-            newlineCount = 0;
-        }
-    }
-    if (foundPrintableCharAt.valid())
-    {
-        if (foundParagraphBreak)
-        {
-            addTagToBlock(foundTags, makeParagraphTag(stylingTag.startText));
-        }
-        stylingTag.startText = foundPrintableCharAt;
-        if (foundEscapedChar)
-        {
-            stylingTag.flags |= MARKDOWN_FLAG_ESCAPED;
-        }
-        if (stylingTag.startText < stylingTag.endText)
-        {
-            addTagToBlock(foundTags, stylingTag);
-        }
-    }
+    normalTag.type = MARKDOWN_TAG_NORMAL;
+    return normalTag;
 }
 
 
@@ -471,67 +434,82 @@ Java_com_crescentflare_markdownparsercore_MarkdownNativeParser_findNativeTags(JN
     UTFString markdownText(markdownTextPointer);
 
     //Loop over string and find tags
-    MARKDOWN_TAG_MEMORY_BLOCK foundTags = newMarkdownTagMemoryBlock();
-    UTFStringIndex maxLength = markdownText.endIndex();
-    UTFStringIndex position = markdownText.startIndex();
-    bool processing;
-    do
+    std::vector<MarkdownTag> foundTags;
+    const UTFStringIndex maxLength = markdownText.endIndex();
+    UTFStringIndex paragraphStartPos(nullptr);
+    MarkdownTag curLine = scanLine(markdownText, markdownText.startIndex(), maxLength, MARKDOWN_TAG_PARAGRAPH);
+    while (curLine.valid())
     {
-        MarkdownTag stylingTag = searchStylingTag(markdownText, maxLength, position);
-        if (stylingTag.valid())
+        //Fetch next line ahead
+        bool hasNextLine = curLine.endPosition < maxLength;
+        bool isEmptyLine = curLine.startPosition + 1 == curLine.endPosition;
+        MARKDOWN_TAG_TYPE curType = curLine.type;
+        if (isEmptyLine)
         {
-            if (stylingTag.startPosition > position)
-            {
-                MarkdownTag normalTag = makeNormalTag(markdownText, position, stylingTag.startPosition);
-                if (normalTag.valid())
-                {
-                    addParagraphedNormalTag(&foundTags, normalTag, markdownText, maxLength);
-                }
-            }
-            if (stylingTag.type == MARKDOWN_TAG_TEXTSTYLE)
-            {
-                addNestedStylingTags(&foundTags, stylingTag, markdownText, maxLength);
-            }
-            else
-            {
-                addTagToBlock(&foundTags, stylingTag);
-            }
-            position = stylingTag.endPosition;
-            processing = true;
+            curType = MARKDOWN_TAG_PARAGRAPH;
         }
-        else
-        {
-            processing = false;
-        }
-    }
-    while (processing);
+        MarkdownTag nextLine = hasNextLine ? scanLine(markdownText, curLine.endPosition, maxLength, curType) : MarkdownTag();
 
-    //Add final tag if there is a bit of string left to handle
-    if (position < maxLength)
-    {
-        MarkdownTag normalTag = makeNormalTag(markdownText, position, maxLength);
-        if (normalTag.valid())
+        //Insert section tag
+        if (curLine.startText.valid())
         {
-            addParagraphedNormalTag(&foundTags, normalTag, markdownText, maxLength);
+            addStyleTags(foundTags, markdownText, curLine);
         }
+        else if (!isEmptyLine)
+        {
+            MarkdownTag spacedLineTag;
+            spacedLineTag.type = curLine.type;
+            spacedLineTag.startPosition = curLine.startPosition;
+            spacedLineTag.endPosition = curLine.endPosition;
+            spacedLineTag.startText = curLine.startPosition;
+            spacedLineTag.endText = curLine.startPosition;
+            spacedLineTag.weight = curLine.weight;
+            spacedLineTag.flags = curLine.flags;
+            foundTags.push_back(spacedLineTag);
+        }
+
+        //Insert paragraphs when needed
+        if (nextLine.valid())
+        {
+            bool startNewParagraph = curLine.type == MARKDOWN_TAG_HEADER || nextLine.type == MARKDOWN_TAG_HEADER || nextLine.startPosition + 1 == nextLine.endPosition;
+            bool stopParagraph = nextLine.startPosition + 1 != nextLine.endPosition;
+            if (startNewParagraph && foundTags.size() > 0 && !paragraphStartPos.valid())
+            {
+                paragraphStartPos = curLine.endPosition;
+            }
+            if (stopParagraph && paragraphStartPos.valid())
+            {
+                MarkdownTag paragraphTag;
+                paragraphTag.type = MARKDOWN_TAG_PARAGRAPH;
+                paragraphTag.startPosition = paragraphStartPos;
+                paragraphTag.endPosition = nextLine.startPosition;
+                paragraphTag.startText = paragraphStartPos;
+                paragraphTag.endText = paragraphStartPos;
+                paragraphTag.weight = nextLine.type == MARKDOWN_TAG_HEADER ? 2 : 1;
+                foundTags.push_back(paragraphTag);
+                paragraphStartPos = UTFStringIndex(nullptr);
+            }
+        }
+
+        //Set pointer to next line and continue
+        curLine = nextLine;
     }
 
     //Convert tags into a java array, clean up and return
     jintArray returnArray = nullptr;
-    jint *convertedValues = (jint *) malloc(foundTags.tagCount * tagFieldCount() * sizeof(jint));
+    jint *convertedValues = (jint *)malloc(foundTags.size() * tagFieldCount() * sizeof(jint));
     if (convertedValues)
     {
-        returnArray = env->NewIntArray(foundTags.tagCount * tagFieldCount());
+        returnArray = env->NewIntArray(foundTags.size() * tagFieldCount());
         int i;
-        for (i = 0; i < foundTags.tagCount; i++)
+        for (i = 0; i < foundTags.size(); i++)
         {
-            fillTagToArray(tagFromBlock(&foundTags, i), &convertedValues[i * tagFieldCount()]);
+            fillTagToArray(&foundTags[i], &convertedValues[i * tagFieldCount()]);
         }
-        env->SetIntArrayRegion(returnArray, 0, foundTags.tagCount * tagFieldCount(), convertedValues);
+        env->SetIntArrayRegion(returnArray, 0, foundTags.size() * tagFieldCount(), convertedValues);
         free(convertedValues);
     }
     env->ReleaseStringUTFChars(markdownText_, markdownTextPointer);
-    deleteMarkdownTagMemoryBlock(&foundTags);
     return returnArray;
 }
 }
