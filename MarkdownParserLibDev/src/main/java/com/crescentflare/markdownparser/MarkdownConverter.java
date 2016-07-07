@@ -34,41 +34,175 @@ public class MarkdownConverter
         MarkdownParser parser = obtainParser(markdownText);
         MarkdownTag[] foundTags = parser.findTags(markdownText);
         String htmlString = "";
-        for (MarkdownTag tag : foundTags)
+        List<Integer> listCount = new ArrayList<>();
+        MarkdownTag.Type prevSectionType = MarkdownTag.Type.Paragraph;
+        boolean addedParagraph = true;
+        for (int i = 0; i < foundTags.length; i++)
         {
-            switch (tag.type)
+            MarkdownTag sectionTag = foundTags[i];
+            if (!addedParagraph && sectionTag.type == MarkdownTag.Type.Normal)
             {
-                case Normal:
-                    htmlString += parser.extractText(markdownText, tag).replaceAll("\\n", "<br/>");
-                    break;
-                case Paragraph:
-                    htmlString += "<br/><br/>";
-                    break;
-                case TextStyle:
+                htmlString += "<br/>";
+            }
+            if (sectionTag.type == MarkdownTag.Type.OrderedList || sectionTag.type == MarkdownTag.Type.UnorderedList)
+            {
+                int matchedType = sectionTag.type == MarkdownTag.Type.OrderedList ? 0 : 1;
+                if (listCount.size() == sectionTag.weight && listCount.size() > 0 && listCount.get(listCount.size() - 1) != matchedType)
                 {
-                    String openTag = "", closeTag = "";
-                    if ((tag.weight & 1) > 0)
-                    {
-                        openTag += "<i>";
-                        closeTag = "</i>" + closeTag;
-                    }
-                    if ((tag.weight & 2) > 0)
-                    {
-                        openTag += "<b>";
-                        closeTag = "</b>" + closeTag;
-                    }
-                    htmlString += openTag + parser.extractText(markdownText, tag).replaceAll("\\n", "<br/>") + closeTag;
-                    break;
+                    htmlString += listCount.get(listCount.size() - 1) == 0 ? "</ol>" : "</ul>";
+                    listCount.remove(listCount.size() - 1);
                 }
-                case AlternativeTextStyle:
-                    htmlString += "<strike>" + parser.extractText(markdownText, tag).replaceAll("\\n", "<br/>") + "</strike>";
-                    break;
-                case Header:
-                    htmlString += "<h" + tag.weight + ">" + parser.extractText(markdownText, tag) + "</h" + tag.weight + ">";
-                    break;
+                for (int j = listCount.size(); j < sectionTag.weight; j++)
+                {
+                    listCount.add(sectionTag.type == MarkdownTag.Type.OrderedList ? 0 : 1);
+                    htmlString += sectionTag.type == MarkdownTag.Type.OrderedList ? "<ol>" : "<ul>";
+                }
+                for (int j = listCount.size(); j > sectionTag.weight; j--)
+                {
+                    htmlString += listCount.get(listCount.size() - 1) == 0 ? "</ol>" : "</ul>";
+                    listCount.remove(listCount.size() - 1);
+                }
+            }
+            if (sectionTag.type == MarkdownTag.Type.Header || sectionTag.type == MarkdownTag.Type.OrderedList || sectionTag.type == MarkdownTag.Type.UnorderedList || sectionTag.type == MarkdownTag.Type.Normal)
+            {
+                List<MarkdownTag> handledTags = new ArrayList<>();
+                htmlString += getHtmlTag(sectionTag, false);
+                htmlString = appendHtmlString(parser, handledTags, htmlString, markdownText, foundTags, i);
+                htmlString += getHtmlTag(sectionTag, true);
+                i += handledTags.size() - 1;
+                addedParagraph = sectionTag.type != MarkdownTag.Type.Normal;
+            }
+            else if (sectionTag.type == MarkdownTag.Type.Paragraph)
+            {
+                boolean nextNormal = i + 1 < foundTags.length && foundTags[i + 1].type == MarkdownTag.Type.Normal;
+                if (prevSectionType == MarkdownTag.Type.Normal && nextNormal)
+                {
+                    for (int j = 0; j < sectionTag.weight + 1; j++)
+                    {
+                        htmlString += "<br/>";
+                    }
+                }
+                addedParagraph = true;
+                for (int j = listCount.size(); j > 0; j--)
+                {
+                    htmlString += listCount.get(listCount.size() - 1) == 0 ? "</ol>" : "</ul>";
+                    listCount.remove(listCount.size() - 1);
+                }
+            }
+            prevSectionType = sectionTag.type;
+        }
+        for (int j = listCount.size(); j > 0; j--)
+        {
+            htmlString += listCount.get(listCount.size() - 1) == 0 ? "</ol>" : "</ul>";
+            listCount.remove(listCount.size() - 1);
+        }
+        return htmlString;
+    }
+
+    private static String appendHtmlString(MarkdownParser parser, List<MarkdownTag> handledTags, String htmlString, String markdownText, MarkdownTag[] foundTags, int start)
+    {
+        MarkdownTag curTag = foundTags[start];
+        MarkdownTag intermediateTag = null;
+        MarkdownTag processingTag = null;
+        int checkPosition = start + 1;
+        boolean processing = true;
+        while (processing)
+        {
+            MarkdownTag nextTag = checkPosition < foundTags.length ? foundTags[checkPosition] : null;
+            processing = false;
+            if (nextTag != null && nextTag.startPosition < curTag.endPosition)
+            {
+                if (processingTag == null)
+                {
+                    processingTag = new MarkdownTag();
+                    handledTags.add(processingTag);
+                    processingTag.type = curTag.type;
+                    processingTag.weight = curTag.weight;
+                    processingTag.startText = htmlString.length();
+                    htmlString += parser.extractTextBetween(markdownText, curTag, nextTag, MarkdownParser.ExtractBetweenMode.StartToNext);
+                    processingTag.endText = htmlString.length();
+                }
+                else
+                {
+                    htmlString += parser.extractTextBetween(markdownText, intermediateTag, nextTag, MarkdownParser.ExtractBetweenMode.IntermediateToNext);
+                    processingTag.endText = htmlString.length();
+                }
+                int prevHandledTagSize = handledTags.size();
+                htmlString += getHtmlTag(nextTag, false);
+                htmlString = appendHtmlString(parser, handledTags, htmlString, markdownText, foundTags, checkPosition);
+                htmlString += getHtmlTag(nextTag, true);
+                intermediateTag = foundTags[checkPosition];
+                checkPosition += handledTags.size() - prevHandledTagSize;
+                processing = true;
+            }
+            else
+            {
+                if (processingTag == null)
+                {
+                    processingTag = new MarkdownTag();
+                    handledTags.add(processingTag);
+                    processingTag.type = curTag.type;
+                    processingTag.weight = curTag.weight;
+                    processingTag.startText = htmlString.length();
+                    htmlString += parser.extractText(markdownText, curTag);
+                    processingTag.endText = htmlString.length();
+                }
+                else
+                {
+                    htmlString += parser.extractTextBetween(markdownText, intermediateTag, curTag, MarkdownParser.ExtractBetweenMode.IntermediateToEnd);
+                    processingTag.endText = htmlString.length();
+                }
             }
         }
         return htmlString;
+    }
+
+    private static String getHtmlTag(MarkdownTag tag, boolean closingTag)
+    {
+        String start = closingTag ? "</" : "<";
+        if (tag.type == MarkdownTag.Type.TextStyle)
+        {
+            switch (tag.weight)
+            {
+                case 1:
+                    start += "i";
+                    break;
+                case 2:
+                    start += "b";
+                    break;
+                case 3:
+                    if (closingTag)
+                    {
+                        start += "b>" + start + "i";
+                    }
+                    else
+                    {
+                        start += "i>" + start + "b";
+                    }
+            }
+        }
+        else if (tag.type == MarkdownTag.Type.AlternativeTextStyle)
+        {
+            start += "strike";
+        }
+        else if (tag.type == MarkdownTag.Type.Header)
+        {
+            int headerSize = 6;
+            if (tag.weight >= 1 && tag.weight < 7)
+            {
+                headerSize = tag.weight;
+            }
+            start += "h" + headerSize;
+        }
+        else if (tag.type == MarkdownTag.Type.OrderedList || tag.type == MarkdownTag.Type.UnorderedList)
+        {
+            start += "li";
+        }
+        else
+        {
+            return "";
+        }
+        return start + ">";
     }
 
     /**
