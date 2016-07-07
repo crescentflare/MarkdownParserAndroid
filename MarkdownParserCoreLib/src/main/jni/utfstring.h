@@ -45,6 +45,7 @@ private:
 
 public:
     UTFStringIndex(UTFString *str);
+    UTFStringIndex(const UTFStringIndex &other);
     UTFStringIndex &increase(int count);
     UTFStringIndex &decrease(int count);
     bool valid();

@@ -46,9 +46,7 @@ public:
     int weight;
     UTFStringIndex position;
 public:
-    MarkdownMarker(int chr, int weight, UTFStringIndex position) : chr(chr), weight(weight), position(position)
-    {
-    }
+    MarkdownMarker(int chr, int weight, UTFStringIndex position) : chr(chr), weight(weight), position(position){ }
 };
 
 const unsigned char tagFieldCount()

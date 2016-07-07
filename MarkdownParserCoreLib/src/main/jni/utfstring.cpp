@@ -59,6 +59,13 @@ UTFStringIndex::UTFStringIndex(UTFString *str)
     }
 }
 
+UTFStringIndex::UTFStringIndex(const UTFStringIndex &other)
+{
+    utfCharArray = other.utfCharArray;
+    bytePos = other.bytePos;
+    chrPos = other.chrPos;
+}
+
 UTFStringIndex &UTFStringIndex::increase(int count)
 {
     if (utfCharArray)
@@ -96,19 +103,19 @@ UTFStringIndex &UTFStringIndex::decrease(int count)
                 break;
             }
             unsigned char chrSize = 0;
-            if (bytePos > 3 && charSize(utfCharArray[bytePos - 4] == 4))
+            if (bytePos > 3 && charSize(utfCharArray[bytePos - 4]) == 4)
             {
                 chrSize = 4;
             }
-            else if (bytePos > 2 && charSize(utfCharArray[bytePos - 3] == 3))
+            else if (bytePos > 2 && charSize(utfCharArray[bytePos - 3]) == 3)
             {
                 chrSize = 3;
             }
-            else if (bytePos > 1 && charSize(utfCharArray[bytePos - 2] == 2))
+            else if (bytePos > 1 && charSize(utfCharArray[bytePos - 2]) == 2)
             {
                 chrSize = 2;
             }
-            else if (bytePos > 0 && charSize(utfCharArray[bytePos - 1] == 1))
+            else if (bytePos > 0 && charSize(utfCharArray[bytePos - 1]) == 1)
             {
                 chrSize = 1;
             }
