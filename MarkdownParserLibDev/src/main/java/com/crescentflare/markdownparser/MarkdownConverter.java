@@ -11,6 +11,7 @@ import android.text.style.LeadingMarginSpan;
 import android.text.style.RelativeSizeSpan;
 import android.text.style.StrikethroughSpan;
 import android.text.style.StyleSpan;
+import android.text.style.URLSpan;
 
 import com.crescentflare.markdownparsercore.MarkdownJavaParser;
 import com.crescentflare.markdownparsercore.MarkdownNativeParser;
@@ -66,9 +67,9 @@ public class MarkdownConverter
             if (sectionTag.type == MarkdownTag.Type.Header || sectionTag.type == MarkdownTag.Type.OrderedList || sectionTag.type == MarkdownTag.Type.UnorderedList || sectionTag.type == MarkdownTag.Type.Normal)
             {
                 List<MarkdownTag> handledTags = new ArrayList<>();
-                htmlString += getHtmlTag(sectionTag, false);
+                htmlString += getHtmlTag(parser, markdownText, sectionTag, false);
                 htmlString = appendHtmlString(parser, handledTags, htmlString, markdownText, foundTags, i);
-                htmlString += getHtmlTag(sectionTag, true);
+                htmlString += getHtmlTag(parser, markdownText, sectionTag, true);
                 i += handledTags.size() - 1;
                 addedParagraph = sectionTag.type != MarkdownTag.Type.Normal;
             }
@@ -118,6 +119,8 @@ public class MarkdownConverter
                     handledTags.add(processingTag);
                     processingTag.type = curTag.type;
                     processingTag.weight = curTag.weight;
+                    processingTag.startExtra = curTag.startExtra;
+                    processingTag.endExtra = curTag.endExtra;
                     processingTag.startText = htmlString.length();
                     htmlString += parser.extractTextBetween(markdownText, curTag, nextTag, MarkdownParser.ExtractBetweenMode.StartToNext);
                     processingTag.endText = htmlString.length();
@@ -128,9 +131,9 @@ public class MarkdownConverter
                     processingTag.endText = htmlString.length();
                 }
                 int prevHandledTagSize = handledTags.size();
-                htmlString += getHtmlTag(nextTag, false);
+                htmlString += getHtmlTag(parser, markdownText, nextTag, false);
                 htmlString = appendHtmlString(parser, handledTags, htmlString, markdownText, foundTags, checkPosition);
-                htmlString += getHtmlTag(nextTag, true);
+                htmlString += getHtmlTag(parser, markdownText, nextTag, true);
                 intermediateTag = foundTags[checkPosition];
                 checkPosition += handledTags.size() - prevHandledTagSize;
                 processing = true;
@@ -143,6 +146,8 @@ public class MarkdownConverter
                     handledTags.add(processingTag);
                     processingTag.type = curTag.type;
                     processingTag.weight = curTag.weight;
+                    processingTag.startExtra = curTag.startExtra;
+                    processingTag.endExtra = curTag.endExtra;
                     processingTag.startText = htmlString.length();
                     htmlString += parser.extractText(markdownText, curTag);
                     processingTag.endText = htmlString.length();
@@ -157,7 +162,7 @@ public class MarkdownConverter
         return htmlString;
     }
 
-    private static String getHtmlTag(MarkdownTag tag, boolean closingTag)
+    private static String getHtmlTag(MarkdownParser parser, String markdownText, MarkdownTag tag, boolean closingTag)
     {
         String start = closingTag ? "</" : "<";
         if (tag.type == MarkdownTag.Type.TextStyle)
@@ -197,6 +202,19 @@ public class MarkdownConverter
         else if (tag.type == MarkdownTag.Type.OrderedList || tag.type == MarkdownTag.Type.UnorderedList)
         {
             start += "li";
+        }
+        else if (tag.type == MarkdownTag.Type.Link)
+        {
+            start += "a";
+            if (!closingTag)
+            {
+                String linkLocation = parser.extractExtra(markdownText, tag);
+                if (linkLocation.length() == 0)
+                {
+                    linkLocation = parser.extractText(markdownText, tag);
+                }
+                start += " href=" + linkLocation;
+            }
         }
         else
         {
@@ -261,6 +279,16 @@ public class MarkdownConverter
                         case AlternativeTextStyle:
                             builder.setSpan(new StrikethroughSpan(), tag.startText, tag.endText, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
                             break;
+                        case Link:
+                        {
+                            String linkLocation = parser.extractExtra(markdownText, tag);
+                            if (linkLocation.length() == 0)
+                            {
+                                linkLocation = builder.subSequence(tag.startText, tag.endText).toString();
+                            }
+                            builder.setSpan(new URLSpan(linkLocation), tag.startText, tag.endText, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+                            break;
+                        }
                     }
                 }
                 addedParagraph = false;
@@ -297,6 +325,8 @@ public class MarkdownConverter
                     convertedTags.add(processingTag);
                     processingTag.type = curTag.type;
                     processingTag.weight = curTag.weight;
+                    processingTag.startExtra = curTag.startExtra;
+                    processingTag.endExtra = curTag.endExtra;
                     processingTag.startText = builder.length();
                     builder.append(parser.extractTextBetween(markdownText, curTag, nextTag, MarkdownParser.ExtractBetweenMode.StartToNext));
                     processingTag.endText = builder.length();
@@ -320,6 +350,8 @@ public class MarkdownConverter
                     convertedTags.add(processingTag);
                     processingTag.type = curTag.type;
                     processingTag.weight = curTag.weight;
+                    processingTag.startExtra = curTag.startExtra;
+                    processingTag.endExtra = curTag.endExtra;
                     processingTag.startText = builder.length();
                     builder.append(parser.extractText(markdownText, curTag));
                     processingTag.endText = builder.length();
