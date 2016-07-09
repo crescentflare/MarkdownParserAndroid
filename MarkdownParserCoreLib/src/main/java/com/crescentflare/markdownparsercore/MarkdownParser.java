@@ -20,4 +20,5 @@ public interface MarkdownParser
     String extractTextBetween(String markdownText, MarkdownTag startTag, MarkdownTag endTag, ExtractBetweenMode mode);
     String extractFull(String markdownText, MarkdownTag tag);
     String extractFullBetween(String markdownText, MarkdownTag startTag, MarkdownTag endTag, ExtractBetweenMode mode);
+    String extractExtra(String markdownText, MarkdownTag tag);
 }

@@ -141,7 +141,7 @@ public class CoreParserTest
                 "  1. Nested first item",
                 "  2. Nested second item",
                 "",
-                "And some text afterwards."
+                "And some text afterwards with a [link](https://www.github.com)."
         };
         SimpleMarkdownTag[] expectedTags = new SimpleMarkdownTag[]
         {
@@ -170,7 +170,8 @@ public class CoreParserTest
                 new SimpleMarkdownTag(MarkdownTag.Type.OrderedList, 2, MarkdownTag.FLAG_NONE, "Nested first item"),
                 new SimpleMarkdownTag(MarkdownTag.Type.OrderedList, 2, MarkdownTag.FLAG_NONE, "Nested second item"),
                 new SimpleMarkdownTag(MarkdownTag.Type.Paragraph, 1, MarkdownTag.FLAG_NONE, ""),
-                new SimpleMarkdownTag(MarkdownTag.Type.Normal, MarkdownTag.FLAG_NONE, "And some text afterwards.")
+                new SimpleMarkdownTag(MarkdownTag.Type.Normal, MarkdownTag.FLAG_NONE, "And some text afterwards with a [link](https://www.github.com)."),
+                new SimpleMarkdownTag(MarkdownTag.Type.Link, MarkdownTag.FLAG_NONE, "link", "https://www.github.com")
         };
         assertTags(markdownTextLines, expectedTags);
     }
@@ -231,21 +232,30 @@ public class CoreParserTest
         private int flags;
         private int weight;
         private String text;
+        private String extra;
 
         public SimpleMarkdownTag(MarkdownTag.Type type, int flags, String text)
         {
-            this.type = type;
-            this.flags = flags;
-            this.weight = 0;
-            this.text = text;
+            this(type, 0, flags, text, "");
+        }
+
+        public SimpleMarkdownTag(MarkdownTag.Type type, int flags, String text, String extra)
+        {
+            this(type, 0, flags, text, extra);
         }
 
         public SimpleMarkdownTag(MarkdownTag.Type type, int weight, int flags, String text)
+        {
+            this(type, weight, 0, text, "");
+        }
+
+        public SimpleMarkdownTag(MarkdownTag.Type type, int weight, int flags, String text, String extra)
         {
             this.type = type;
             this.weight = weight;
             this.flags = flags;
             this.text = text;
+            this.extra = extra;
         }
 
         public SimpleMarkdownTag(String markdownText, MarkdownTag tag)
@@ -254,6 +264,7 @@ public class CoreParserTest
             this.weight = tag.weight;
             this.flags = tag.flags;
             this.text = new MarkdownJavaParser().extractText(markdownText, tag);
+            this.extra = new MarkdownJavaParser().extractExtra(markdownText, tag);
         }
 
         @Override
@@ -280,6 +291,10 @@ public class CoreParserTest
             {
                 return false;
             }
+            if (!extra.equals(that.extra))
+            {
+                return false;
+            }
             return text.equals(that.text);
         }
 
@@ -291,6 +306,7 @@ public class CoreParserTest
                     ", flags=" + flags +
                     ", weight=" + weight +
                     ", text='" + text + '\'' +
+                    ", extra='" + extra + '\'' +
                     '}';
         }
     }

@@ -17,6 +17,7 @@ typedef enum
     MARKDOWN_TAG_PARAGRAPH,
     MARKDOWN_TAG_TEXTSTYLE,
     MARKDOWN_TAG_ALTERNATIVE_TEXTSTYLE,
+    MARKDOWN_TAG_LINK,
     MARKDOWN_TAG_HEADER,
     MARKDOWN_TAG_ORDERED_LIST,
     MARKDOWN_TAG_UNORDERED_LIST
@@ -31,6 +32,8 @@ public:
     UTFStringIndex endPosition = UTFStringIndex(nullptr);
     UTFStringIndex startText = UTFStringIndex(nullptr);
     UTFStringIndex endText = UTFStringIndex(nullptr);
+    UTFStringIndex startExtra = UTFStringIndex(nullptr);
+    UTFStringIndex endExtra = UTFStringIndex(nullptr);
     int weight = 1;
 public:
     bool valid()
@@ -46,12 +49,17 @@ public:
     int weight;
     UTFStringIndex position;
 public:
+    MarkdownMarker() : chr(0), weight(0), position(nullptr) { }
     MarkdownMarker(int chr, int weight, UTFStringIndex position) : chr(chr), weight(weight), position(position){ }
+    bool valid()
+    {
+        return position.valid();
+    }
 };
 
 const unsigned char tagFieldCount()
 {
-    return 11;
+    return 15;
 }
 
 void fillTagToArray(const MarkdownTag *tag, jint *ptr)
@@ -60,15 +68,19 @@ void fillTagToArray(const MarkdownTag *tag, jint *ptr)
     {
         ptr[0] = tag->type;
         ptr[1] = tag->flags;
-        ptr[2] = tag->startPosition.chrPos;
-        ptr[3] = tag->endPosition.chrPos;
-        ptr[4] = tag->startText.chrPos;
-        ptr[5] = tag->endText.chrPos;
-        ptr[6] = tag->startPosition.bytePos;
-        ptr[7] = tag->endPosition.bytePos;
-        ptr[8] = tag->startText.bytePos;
-        ptr[9] = tag->endText.bytePos;
-        ptr[10] = tag->weight;
+        ptr[2] = tag->weight;
+        ptr[3] = tag->startPosition.chrPos;
+        ptr[4] = tag->endPosition.chrPos;
+        ptr[5] = tag->startText.chrPos;
+        ptr[6] = tag->endText.chrPos;
+        ptr[7] = tag->startExtra.chrPos;
+        ptr[8] = tag->endExtra.chrPos;
+        ptr[9] = tag->startPosition.bytePos;
+        ptr[10] = tag->endPosition.bytePos;
+        ptr[11] = tag->startText.bytePos;
+        ptr[12] = tag->endText.bytePos;
+        ptr[13] = tag->startExtra.bytePos;
+        ptr[14] = tag->endExtra.bytePos;
     }
 }
 
@@ -154,32 +166,80 @@ void processMarkers(std::vector<MarkdownTag> &addTags, std::vector<MarkdownMarke
     {
         MarkdownMarker &marker = markers[start];
         processing = false;
-        for (int i = start + 1; i < end; i++)
+        if (marker.chr == '[' || marker.chr == ']' || marker.chr == '(' || marker.chr == ')')
         {
-            MarkdownMarker &checkMarker = markers[i];
-            if (checkMarker.chr == marker.chr && checkMarker.weight >= marker.weight)
+            if (marker.chr == '[')
             {
-                MarkdownTag tag;
-                tag.type = checkMarker.chr == '~' ? MARKDOWN_TAG_ALTERNATIVE_TEXTSTYLE : MARKDOWN_TAG_TEXTSTYLE;
-                tag.weight = marker.weight;
-                tag.startPosition = marker.position;
-                tag.endPosition = checkMarker.position + marker.weight;
-                tag.startText = tag.startPosition + marker.weight;
-                tag.endText = checkMarker.position;
-                tag.flags = addFlags;
-                addTags.push_back(tag);
-                processMarkers(addTags, markers, start + 1, i, addFlags);
-                if (checkMarker.weight > marker.weight)
+                MarkdownTag linkTag;
+                MarkdownMarker extraMarker;
+                for (int i = start + 1; i < end; i++)
                 {
-                    checkMarker.weight -= marker.weight;
-                    start = i;
+                    MarkdownMarker checkMarker = markers[i];
+                    if ((checkMarker.chr == ']' && !linkTag.valid()) || (checkMarker.chr == ')' && linkTag.valid()))
+                    {
+                        if (!linkTag.valid())
+                        {
+                            linkTag.type = MARKDOWN_TAG_LINK;
+                            linkTag.startPosition = marker.position;
+                            linkTag.endPosition = checkMarker.position + checkMarker.weight;
+                            linkTag.startText = linkTag.startPosition + marker.weight;
+                            linkTag.endText = checkMarker.position;
+                            linkTag.flags = addFlags;
+                            addTags.push_back(linkTag);
+                            start = i + 1;
+                            if (start < end)
+                            {
+                                extraMarker = markers[start];
+                                if (extraMarker.chr != '(' || extraMarker.position != checkMarker.position + checkMarker.weight)
+                                {
+                                    processing = true;
+                                    break;
+                                }
+                            }
+                        }
+                        else if (extraMarker.valid())
+                        {
+                            linkTag.startExtra = extraMarker.position + extraMarker.weight;
+                            linkTag.endExtra = checkMarker.position;
+                            linkTag.endPosition = checkMarker.position + checkMarker.weight;
+                            addTags[addTags.size() - 1] = linkTag;
+                            start = i + 1;
+                            processing = true;
+                            break;
+                        }
+                    }
                 }
-                else
+            }
+        }
+        else
+        {
+            for (int i = start + 1; i < end; i++)
+            {
+                MarkdownMarker &checkMarker = markers[i];
+                if (checkMarker.chr == marker.chr && checkMarker.weight >= marker.weight)
                 {
-                    start = i + 1;
+                    MarkdownTag tag;
+                    tag.type = checkMarker.chr == '~' ? MARKDOWN_TAG_ALTERNATIVE_TEXTSTYLE : MARKDOWN_TAG_TEXTSTYLE;
+                    tag.weight = marker.weight;
+                    tag.startPosition = marker.position;
+                    tag.endPosition = checkMarker.position + marker.weight;
+                    tag.startText = tag.startPosition + marker.weight;
+                    tag.endText = checkMarker.position;
+                    tag.flags = addFlags;
+                    addTags.push_back(tag);
+                    processMarkers(addTags, markers, start + 1, i, addFlags);
+                    if (checkMarker.weight > marker.weight)
+                    {
+                        checkMarker.weight -= marker.weight;
+                        start = i;
+                    }
+                    else
+                    {
+                        start = i + 1;
+                    }
+                    processing = true;
+                    break;
                 }
-                processing = true;
-                break;
             }
         }
         if (!processing)
@@ -246,6 +306,10 @@ void addStyleTags(std::vector<MarkdownTag> &foundTags, const UTFString &markdown
             {
                 curMarkerChar = chr;
                 curMarkerWeight = 1;
+            }
+            else if (chr == '[' || chr == ']' || chr == '(' || chr == ')')
+            {
+                tagMarkers.push_back(MarkdownMarker(chr, 1, i));
             }
         }
         if (chr == '\\')

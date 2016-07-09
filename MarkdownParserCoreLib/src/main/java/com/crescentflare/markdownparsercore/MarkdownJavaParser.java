@@ -158,6 +158,19 @@ public class MarkdownJavaParser implements MarkdownParser
         return markdownText.substring(startPos, endPos);
     }
 
+    public String extractExtra(String markdownText, MarkdownTag tag)
+    {
+        if (tag.startExtra < 0 || tag.endExtra < 0 || tag.endExtra <= tag.startExtra)
+        {
+            return "";
+        }
+        if ((tag.flags & MarkdownTag.FLAG_ESCAPED) > 0)
+        {
+            return escapedSubstring(markdownText, tag.startExtra, tag.endExtra);
+        }
+        return markdownText.substring(tag.startExtra, tag.endExtra);
+    }
+
     private String escapedSubstring(String text, int startPosition, int endPosition)
     {
         String filteredText = "";
@@ -372,6 +385,10 @@ public class MarkdownJavaParser implements MarkdownParser
                     curMarkerChar = chr;
                     curMarkerWeight = 1;
                 }
+                else if (chr == '[' || chr == ']' || chr == '(' || chr == ')')
+                {
+                    tagMarkers.add(new MarkdownMarker(chr, 1, i));
+                }
             }
             if (chr == '\\')
             {
@@ -406,32 +423,80 @@ public class MarkdownJavaParser implements MarkdownParser
         {
             MarkdownMarker marker = markers.get(start);
             processing = false;
-            for (int i = start + 1; i < end; i++)
+            if (marker.chr == '[' || marker.chr == ']' || marker.chr == '(' || marker.chr == ')')
             {
-                MarkdownMarker checkMarker = markers.get(i);
-                if (checkMarker.chr == marker.chr && checkMarker.weight >= marker.weight)
+                if (marker.chr == '[')
                 {
-                    MarkdownTag tag = new MarkdownTag();
-                    tag.type = checkMarker.chr == '~' ? MarkdownTag.Type.AlternativeTextStyle : MarkdownTag.Type.TextStyle;
-                    tag.weight = marker.weight;
-                    tag.startPosition = marker.position;
-                    tag.endPosition = checkMarker.position + marker.weight;
-                    tag.startText = tag.startPosition + marker.weight;
-                    tag.endText = checkMarker.position;
-                    tag.flags = addFlags;
-                    addTags.add(tag);
-                    processMarkers(addTags, markers, start + 1, i, addFlags);
-                    if (checkMarker.weight > marker.weight)
+                    MarkdownTag linkTag = null;
+                    MarkdownMarker extraMarker = null;
+                    for (int i = start + 1; i < end; i++)
                     {
-                        checkMarker.weight -= marker.weight;
-                        start = i;
+                        MarkdownMarker checkMarker = markers.get(i);
+                        if ((checkMarker.chr == ']' && linkTag == null) || (checkMarker.chr == ')' && linkTag != null))
+                        {
+                            if (linkTag == null)
+                            {
+                                linkTag = new MarkdownTag();
+                                linkTag.type = MarkdownTag.Type.Link;
+                                linkTag.startPosition = marker.position;
+                                linkTag.endPosition = checkMarker.position + checkMarker.weight;
+                                linkTag.startText = linkTag.startPosition + marker.weight;
+                                linkTag.endText = checkMarker.position;
+                                linkTag.flags = addFlags;
+                                addTags.add(linkTag);
+                                start = i + 1;
+                                if (start < end)
+                                {
+                                    extraMarker = markers.get(start);
+                                    if (extraMarker.chr != '(' || extraMarker.position != checkMarker.position + checkMarker.weight)
+                                    {
+                                        processing = true;
+                                        break;
+                                    }
+                                }
+                            }
+                            else if (extraMarker != null)
+                            {
+                                linkTag.startExtra = extraMarker.position + extraMarker.weight;
+                                linkTag.endExtra = checkMarker.position;
+                                linkTag.endPosition = checkMarker.position + checkMarker.weight;
+                                start = i + 1;
+                                processing = true;
+                                break;
+                            }
+                        }
                     }
-                    else
+                }
+            }
+            else
+            {
+                for (int i = start + 1; i < end; i++)
+                {
+                    MarkdownMarker checkMarker = markers.get(i);
+                    if (checkMarker.chr == marker.chr && checkMarker.weight >= marker.weight)
                     {
-                        start = i + 1;
+                        MarkdownTag tag = new MarkdownTag();
+                        tag.type = checkMarker.chr == '~' ? MarkdownTag.Type.AlternativeTextStyle : MarkdownTag.Type.TextStyle;
+                        tag.weight = marker.weight;
+                        tag.startPosition = marker.position;
+                        tag.endPosition = checkMarker.position + marker.weight;
+                        tag.startText = tag.startPosition + marker.weight;
+                        tag.endText = checkMarker.position;
+                        tag.flags = addFlags;
+                        addTags.add(tag);
+                        processMarkers(addTags, markers, start + 1, i, addFlags);
+                        if (checkMarker.weight > marker.weight)
+                        {
+                            checkMarker.weight -= marker.weight;
+                            start = i;
+                        }
+                        else
+                        {
+                            start = i + 1;
+                        }
+                        processing = true;
+                        break;
                     }
-                    processing = true;
-                    break;
                 }
             }
             if (!processing)
