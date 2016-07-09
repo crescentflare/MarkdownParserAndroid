@@ -132,6 +132,10 @@ public class MarkdownNativeParser implements MarkdownParser
                 endPos = endTag.endText;
                 break;
         }
+        if (startPos >= endPos)
+        {
+            return "";
+        }
         if ((startTag.flags & MarkdownTag.FLAG_ESCAPED) > 0)
         {
             if (startTag.nativeInfo != null)
@@ -184,6 +188,10 @@ public class MarkdownNativeParser implements MarkdownParser
                 startPos = startTag.endPosition;
                 endPos = endTag.endPosition;
                 break;
+        }
+        if (startPos >= endPos)
+        {
+            return "";
         }
         if ((startTag.flags & MarkdownTag.FLAG_ESCAPED) > 0)
         {
