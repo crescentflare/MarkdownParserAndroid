@@ -431,6 +431,7 @@ public class MarkdownJavaParser implements MarkdownParser
                         start = i + 1;
                     }
                     processing = true;
+                    break;
                 }
             }
             if (!processing)
