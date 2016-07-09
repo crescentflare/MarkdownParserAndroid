@@ -109,6 +109,10 @@ public class MarkdownJavaParser implements MarkdownParser
                 endPos = endTag.endText;
                 break;
         }
+        if (startPos >= endPos)
+        {
+            return "";
+        }
         if ((startTag.flags & MarkdownTag.FLAG_ESCAPED) > 0)
         {
             return escapedSubstring(markdownText, startPos, endPos);
@@ -142,6 +146,10 @@ public class MarkdownJavaParser implements MarkdownParser
                 startPos = startTag.endPosition;
                 endPos = endTag.endPosition;
                 break;
+        }
+        if (startPos >= endPos)
+        {
+            return "";
         }
         if ((startTag.flags & MarkdownTag.FLAG_ESCAPED) > 0)
         {
@@ -423,6 +431,7 @@ public class MarkdownJavaParser implements MarkdownParser
                         start = i + 1;
                     }
                     processing = true;
+                    break;
                 }
             }
             if (!processing)

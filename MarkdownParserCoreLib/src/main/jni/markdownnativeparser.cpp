@@ -179,6 +179,7 @@ void processMarkers(std::vector<MarkdownTag> &addTags, std::vector<MarkdownMarke
                     start = i + 1;
                 }
                 processing = true;
+                break;
             }
         }
         if (!processing)
