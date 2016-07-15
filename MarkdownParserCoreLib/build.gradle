@@ -9,8 +9,8 @@ model {
             minSdkVersion.apiLevel 9
             targetSdkVersion.apiLevel 22
             versionCode 1
-            versionName "0.3.1"
-            project.version "0.3.1"
+            versionName "0.3.2"
+            project.version "0.3.2"
         }
 
         buildTypes {
