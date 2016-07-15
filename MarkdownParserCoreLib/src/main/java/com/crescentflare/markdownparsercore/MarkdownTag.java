@@ -12,6 +12,7 @@ public class MarkdownTag
         Paragraph,
         TextStyle,
         AlternativeTextStyle,
+        Link,
         Header,
         OrderedList,
         UnorderedList
@@ -26,6 +27,8 @@ public class MarkdownTag
     public int endPosition = -1;
     public int startText = -1;
     public int endText = -1;
+    public int startExtra = -1;
+    public int endExtra = -1;
     public int weight = 0;
     public int nativeInfo[] = null;
 }

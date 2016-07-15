@@ -21,6 +21,8 @@ public class MarkdownNativeParser implements MarkdownParser
     private static int NATIVE_INFO_END_POSITION = 1;
     private static int NATIVE_INFO_START_TEXT = 2;
     private static int NATIVE_INFO_END_TEXT = 3;
+    private static int NATIVE_INFO_START_EXTRA = 4;
+    private static int NATIVE_INFO_END_EXTRA = 5;
 
     /**
      * Wrapper for finding markdown tags natively, most of the work is being done in the C source file
@@ -46,7 +48,7 @@ public class MarkdownNativeParser implements MarkdownParser
     /**
      * Convert tags from native int array to java object
      */
-    private static final int FIELD_COUNT = 11;
+    private static final int FIELD_COUNT = 15;
 
     private int getTagCount(final int[] nativeTags)
     {
@@ -63,16 +65,20 @@ public class MarkdownNativeParser implements MarkdownParser
         position *= FIELD_COUNT;
         tag.type = getConvertedTagType(nativeTags[position]);
         tag.flags = nativeTags[position + 1];
-        tag.startPosition = nativeTags[position + 2];
-        tag.endPosition = nativeTags[position + 3];
-        tag.startText = nativeTags[position + 4];
-        tag.endText = nativeTags[position + 5];
-        tag.weight = nativeTags[position + 10];
-        tag.nativeInfo = new int[4];
-        tag.nativeInfo[NATIVE_INFO_START_POSITION] = nativeTags[position + 6];
-        tag.nativeInfo[NATIVE_INFO_END_POSITION] = nativeTags[position + 7];
-        tag.nativeInfo[NATIVE_INFO_START_TEXT] = nativeTags[position + 8];
-        tag.nativeInfo[NATIVE_INFO_END_TEXT] = nativeTags[position + 9];
+        tag.weight = nativeTags[position + 2];
+        tag.startPosition = nativeTags[position + 3];
+        tag.endPosition = nativeTags[position + 4];
+        tag.startText = nativeTags[position + 5];
+        tag.endText = nativeTags[position + 6];
+        tag.startExtra = nativeTags[position + 7];
+        tag.endExtra = nativeTags[position + 8];
+        tag.nativeInfo = new int[6];
+        tag.nativeInfo[NATIVE_INFO_START_POSITION] = nativeTags[position + 9];
+        tag.nativeInfo[NATIVE_INFO_END_POSITION] = nativeTags[position + 10];
+        tag.nativeInfo[NATIVE_INFO_START_TEXT] = nativeTags[position + 11];
+        tag.nativeInfo[NATIVE_INFO_END_TEXT] = nativeTags[position + 12];
+        tag.nativeInfo[NATIVE_INFO_START_EXTRA] = nativeTags[position + 13];
+        tag.nativeInfo[NATIVE_INFO_END_EXTRA] = nativeTags[position + 14];
         return tag;
     }
 
@@ -89,10 +95,12 @@ public class MarkdownNativeParser implements MarkdownParser
             case 4:
                 return MarkdownTag.Type.AlternativeTextStyle;
             case 5:
-                return MarkdownTag.Type.Header;
+                return MarkdownTag.Type.Link;
             case 6:
-                return MarkdownTag.Type.OrderedList;
+                return MarkdownTag.Type.Header;
             case 7:
+                return MarkdownTag.Type.OrderedList;
+            case 8:
                 return MarkdownTag.Type.UnorderedList;
         }
         return MarkdownTag.Type.Normal;
@@ -213,6 +221,23 @@ public class MarkdownNativeParser implements MarkdownParser
             return escapedSubstringJava(markdownText, startPos, endPos);
         }
         return markdownText.substring(startPos, endPos);
+    }
+
+    public String extractExtra(String markdownText, MarkdownTag tag)
+    {
+        if (tag.startExtra < 0 || tag.endExtra < 0 || tag.endExtra <= tag.startExtra)
+        {
+            return "";
+        }
+        if ((tag.flags & MarkdownTag.FLAG_ESCAPED) > 0)
+        {
+            if (tag.nativeInfo != null)
+            {
+                return escapedSubstring(markdownText, tag.nativeInfo[NATIVE_INFO_START_EXTRA], tag.nativeInfo[NATIVE_INFO_END_EXTRA]);
+            }
+            return escapedSubstringJava(markdownText, tag.startExtra, tag.endExtra);
+        }
+        return markdownText.substring(tag.startExtra, tag.endExtra);
     }
 
     private native String escapedSubstring(String text, int bytePosition, int length);

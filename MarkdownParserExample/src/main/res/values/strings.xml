@@ -13,5 +13,7 @@
         <item>2. Second item</item>
         <item>"  * First nested bullet item"</item>
         <item>"  * Second nested bullet item with a longer set of text to make it wrap around to a new line"</item>
+        <item>""</item>
+        <item>Testing a link to [github](https://github.com/crescentflare/MarkdownParserAndroid).</item>
     </string-array>
 </resources>
