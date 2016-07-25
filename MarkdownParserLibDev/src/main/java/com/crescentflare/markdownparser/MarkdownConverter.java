@@ -28,6 +28,11 @@ import java.util.List;
 public class MarkdownConverter
 {
     /**
+     * Static member to determine availability of the native core parser implementation
+     */
+    private static int nativeParserLibraryLoaded = 0;
+
+    /**
      * HTML conversion handling
      */
     public static String toHtmlString(String markdownText)
@@ -406,7 +411,19 @@ public class MarkdownConverter
      */
     private static MarkdownParser obtainParser(String text)
     {
-        return text.length() > 128 ? new MarkdownNativeParser() : new MarkdownJavaParser();
+        if (nativeParserLibraryLoaded == 0)
+        {
+            try
+            {
+                System.loadLibrary("markdownparser_native");
+                nativeParserLibraryLoaded = 1;
+            }
+            catch (Throwable t)
+            {
+                nativeParserLibraryLoaded = -1;
+            }
+        }
+        return text.length() > 128 && nativeParserLibraryLoaded == 1 ? new MarkdownNativeParser() : new MarkdownJavaParser();
     }
 
     /**
