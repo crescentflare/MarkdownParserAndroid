@@ -1,15 +1,11 @@
 package com.crescentflare.markdownparser;
 
-import android.graphics.Typeface;
-import android.text.Spannable;
+import android.text.SpannableString;
 import android.text.SpannableStringBuilder;
 import android.text.Spanned;
-import android.text.style.RelativeSizeSpan;
-import android.text.style.StrikethroughSpan;
-import android.text.style.StyleSpan;
-import android.text.style.URLSpan;
 
-import com.crescentflare.markdownparser.helper.AlignedListSpan;
+import com.crescentflare.markdownparser.helper.DefaultMarkdownSpanGenerator;
+import com.crescentflare.markdownparser.helper.MarkdownSpanGenerator;
 import com.crescentflare.markdownparsercore.MarkdownJavaParser;
 import com.crescentflare.markdownparsercore.MarkdownNativeParser;
 import com.crescentflare.markdownparsercore.MarkdownParser;
@@ -230,6 +226,15 @@ public class MarkdownConverter
      */
     public static Spanned toSpannable(String markdownText)
     {
+        return toSpannable(markdownText, new DefaultMarkdownSpanGenerator());
+    }
+
+    public static Spanned toSpannable(String markdownText, MarkdownSpanGenerator spanGenerator)
+    {
+        if (spanGenerator == null)
+        {
+            return new SpannableString("#Error");
+        }
         MarkdownParser parser = obtainParser(markdownText);
         MarkdownTag[] foundTags = parser.findTags(markdownText);
         SpannableStringBuilder builder = new SpannableStringBuilder();
@@ -264,34 +269,29 @@ public class MarkdownConverter
                 i += convertedTags.size() - 1;
                 if (sectionTag.type == MarkdownTag.Type.OrderedList || sectionTag.type == MarkdownTag.Type.UnorderedList)
                 {
-                    String token = sectionTag.type == MarkdownTag.Type.OrderedList ? "" + listCount.get(listCount.size() - 1) + "." : bulletTokenForWeight(sectionTag.weight);
-                    builder.setSpan(new AlignedListSpan(token, 30 + (sectionTag.weight - 1) * 15, 5), convertedTags.get(0).startText, convertedTags.get(0).endText, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                    String token = spanGenerator.getListToken(sectionTag.type, sectionTag.weight, listCount.get(listCount.size() - 1));
+                    if (token == null)
+                    {
+                        token = "";
+                    }
+                    spanGenerator.applySpan(builder, sectionTag.type, sectionTag.weight, convertedTags.get(0).startText, convertedTags.get(0).endText, token);
                 }
                 for (MarkdownTag tag : convertedTags)
                 {
-                    switch (tag.type)
+                    if (tag.type == MarkdownTag.Type.OrderedList || tag.type == MarkdownTag.Type.UnorderedList)
                     {
-                        case Header:
-                            builder.setSpan(new RelativeSizeSpan(sizeForHeader(tag.weight)), tag.startText, tag.endText, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
-                            builder.setSpan(new StyleSpan(Typeface.BOLD), tag.startText, tag.endText, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
-                            break;
-                        case TextStyle:
-                            builder.setSpan(new StyleSpan(textStyleForWeight(tag.weight)), tag.startText, tag.endText, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
-                            break;
-                        case AlternativeTextStyle:
-                            builder.setSpan(new StrikethroughSpan(), tag.startText, tag.endText, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
-                            break;
-                        case Link:
+                        continue;
+                    }
+                    String extra = "";
+                    if (tag.type == MarkdownTag.Type.Link)
+                    {
+                        extra = parser.extractExtra(markdownText, tag);
+                        if (extra.length() == 0)
                         {
-                            String linkLocation = parser.extractExtra(markdownText, tag);
-                            if (linkLocation.length() == 0)
-                            {
-                                linkLocation = builder.subSequence(tag.startText, tag.endText).toString();
-                            }
-                            builder.setSpan(new URLSpan(linkLocation), tag.startText, tag.endText, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
-                            break;
+                            extra = builder.subSequence(tag.startText, tag.endText).toString();
                         }
                     }
+                    spanGenerator.applySpan(builder, tag.type, tag.weight, tag.startText, tag.endText, extra);
                 }
                 addedParagraph = false;
             }
@@ -300,7 +300,7 @@ public class MarkdownConverter
                 if (sectionTag.weight > 0)
                 {
                     builder.append("\n");
-                    builder.setSpan(new RelativeSizeSpan(sectionTag.weight), builder.length() - 1, builder.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                    spanGenerator.applySpan(builder, MarkdownTag.Type.Paragraph, sectionTag.weight, builder.length() - 1, builder.length(), "");
                 }
                 addedParagraph = true;
                 listCount.clear();
@@ -366,42 +366,6 @@ public class MarkdownConverter
                 }
             }
         }
-    }
-
-    private static float sizeForHeader(int weight)
-    {
-        if (weight >= 1 && weight < 6)
-        {
-            return 1.5f - (float)(weight - 1) * 0.1f;
-        }
-        return 1.0f;
-    }
-
-    private static int textStyleForWeight(int weight)
-    {
-        switch (weight)
-        {
-            case 1:
-                return Typeface.ITALIC;
-            case 2:
-                return Typeface.BOLD;
-            case 3:
-                return Typeface.BOLD_ITALIC;
-        }
-        return Typeface.NORMAL;
-    }
-
-    private static String bulletTokenForWeight(int weight)
-    {
-        if (weight == 2)
-        {
-            return "\u25E6 ";
-        }
-        else if (weight >= 3)
-        {
-            return "\u25AA ";
-        }
-        return "\u2022 ";
     }
 
     /**
