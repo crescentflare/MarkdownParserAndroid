@@ -1,18 +1,15 @@
 package com.crescentflare.markdownparser;
 
-import android.graphics.Canvas;
-import android.graphics.Paint;
 import android.graphics.Typeface;
-import android.text.Layout;
 import android.text.Spannable;
 import android.text.SpannableStringBuilder;
 import android.text.Spanned;
-import android.text.style.LeadingMarginSpan;
 import android.text.style.RelativeSizeSpan;
 import android.text.style.StrikethroughSpan;
 import android.text.style.StyleSpan;
 import android.text.style.URLSpan;
 
+import com.crescentflare.markdownparser.helper.AlignedListSpan;
 import com.crescentflare.markdownparsercore.MarkdownJavaParser;
 import com.crescentflare.markdownparsercore.MarkdownNativeParser;
 import com.crescentflare.markdownparsercore.MarkdownParser;
@@ -268,7 +265,7 @@ public class MarkdownConverter
                 if (sectionTag.type == MarkdownTag.Type.OrderedList || sectionTag.type == MarkdownTag.Type.UnorderedList)
                 {
                     String token = sectionTag.type == MarkdownTag.Type.OrderedList ? "" + listCount.get(listCount.size() - 1) + "." : bulletTokenForWeight(sectionTag.weight);
-                    builder.setSpan(new MarkdownListSpan(token, 60 + (sectionTag.weight - 1) * 30, 10), convertedTags.get(0).startText, convertedTags.get(0).endText, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                    builder.setSpan(new AlignedListSpan(token, 30 + (sectionTag.weight - 1) * 15, 5), convertedTags.get(0).startText, convertedTags.get(0).endText, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
                 }
                 for (MarkdownTag tag : convertedTags)
                 {
@@ -424,40 +421,5 @@ public class MarkdownConverter
             }
         }
         return text.length() > 128 && nativeParserLibraryLoaded == 1 ? new MarkdownNativeParser() : new MarkdownJavaParser();
-    }
-
-    /**
-     * Span to draw lists and unordered list in a better way
-     */
-    static class MarkdownListSpan implements LeadingMarginSpan
-    {
-        private String listToken = "";
-        private int margin = 0;
-        private int offset = 0;
-
-        MarkdownListSpan(String listToken, int margin, int offset)
-        {
-            this.listToken = listToken;
-            this.margin = margin;
-            this.offset = offset;
-        }
-
-        @Override
-        public int getLeadingMargin(boolean first)
-        {
-            return margin;
-        }
-
-        @Override
-        public void drawLeadingMargin(Canvas c, Paint p, int x, int dir, int top, int baseline, int bottom, CharSequence text, int start, int end, boolean first, Layout layout)
-        {
-            if (first)
-            {
-                Paint.Style orgStyle = p.getStyle();
-                p.setStyle(Paint.Style.FILL);
-                c.drawText(listToken, x + getLeadingMargin(true) - offset - p.measureText(listToken), bottom - p.descent(), p);
-                p.setStyle(orgStyle);
-            }
-        }
     }
 }
