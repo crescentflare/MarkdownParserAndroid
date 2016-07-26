@@ -297,9 +297,10 @@ public class MarkdownConverter
             }
             else if (sectionTag.type == MarkdownTag.Type.Paragraph)
             {
-                for (int j = 0; j < sectionTag.weight; j++)
+                if (sectionTag.weight > 0)
                 {
                     builder.append("\n");
+                    builder.setSpan(new RelativeSizeSpan(sectionTag.weight), builder.length() - 1, builder.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
                 }
                 addedParagraph = true;
                 listCount.clear();
